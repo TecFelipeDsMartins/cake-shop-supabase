@@ -264,11 +264,33 @@ export default function RecipeEditorModal({
                     className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     <option value="">Escolha um insumo...</option>
-                    {availableRecipes.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} (R$ {r.costPerUnit.toFixed(2)}/un)
-                      </option>
-                    ))}
+                    {availableRecipes.filter(r => r.type === 'base').length > 0 && (
+                      <optgroup label="Insumos Base">
+                        {availableRecipes.filter(r => r.type === 'base').map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name} (R$ {r.costPerUnit.toFixed(2)}/un)
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {availableRecipes.filter(r => r.type === 'processed').length > 0 && (
+                      <optgroup label="Insumos Processados">
+                        {availableRecipes.filter(r => r.type === 'processed').map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name} (R$ {r.costPerUnit.toFixed(2)}/un)
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {formData.type !== 'final' && availableRecipes.filter(r => r.type === 'final').length > 0 && (
+                      <optgroup label="Produtos Finais">
+                        {availableRecipes.filter(r => r.type === 'final').map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name} (R$ {r.costPerUnit.toFixed(2)}/un)
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 
