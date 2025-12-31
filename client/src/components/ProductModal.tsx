@@ -54,7 +54,11 @@ export default function ProductModal({
       return;
     }
 
-    const ingredient = availableIngredients.find(ing => ing.id === selectedIngredientId);
+    // Procura em ambas as listas de ingredientes
+    let ingredient = availableIngredients.find(ing => ing.id === selectedIngredientId);
+    if (!ingredient) {
+      ingredient = processedIngredients.find(ing => ing.id === selectedIngredientId);
+    }
     if (!ingredient) return;
 
     const newIngredient: RecipeIngredient = {
