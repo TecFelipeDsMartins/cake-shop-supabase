@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
+import Ingredients from "./pages/Ingredients";
 import Inventory from "./pages/Inventory";
 import Sales from "./pages/Sales";
 import Finances from "./pages/Finances";
@@ -23,6 +24,7 @@ function Router() {
         <div className="p-4 lg:p-8">
           <Switch>
             <Route path="/dashboard" component={Dashboard} />
+            <Route path="/ingredients" component={Ingredients} />
             <Route path="/inventory" component={Inventory} />
             <Route path="/sales" component={Sales} />
             <Route path="/finances" component={Finances} />
