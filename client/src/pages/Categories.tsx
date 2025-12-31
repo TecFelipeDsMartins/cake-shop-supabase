@@ -115,10 +115,12 @@ export default function Categories() {
     }
   };
 
-  const groupedCategories = {
+  const groupedCategories: Record<string, Category[]> = {
     ingredient: categories.filter(c => c.type === 'ingredient'),
     product: categories.filter(c => c.type === 'product'),
+    income: categories.filter(c => c.type === 'income'),
     expense: categories.filter(c => c.type === 'expense'),
+    transfer: categories.filter(c => c.type === 'transfer'),
     payment: categories.filter(c => c.type === 'payment'),
   };
 
@@ -146,7 +148,7 @@ export default function Categories() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {groupedCategories[type as keyof typeof groupedCategories].map((category) => (
+            {(groupedCategories[type] || []).map((category) => (
               <Card key={category.id} className="p-4 hover:shadow-lg transition-shadow">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1">
@@ -182,7 +184,7 @@ export default function Categories() {
               </Card>
             ))}
 
-            {groupedCategories[type as keyof typeof groupedCategories].length === 0 && (
+            {(!groupedCategories[type] || groupedCategories[type].length === 0) && (
               <Card className="p-8 col-span-full flex items-center justify-center text-center">
                 <p className="text-muted-foreground">Nenhuma categoria neste tipo</p>
               </Card>
