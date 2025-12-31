@@ -54,21 +54,21 @@ export default function Sidebar({ currentPath }: SidebarProps) {
             const Icon = item.icon;
             const isActive = currentPath === item.path;
             return (
-              <Link key={item.path} href={item.path}>
-                <a
-                  onClick={() => setIsOpen(false)}
-                  className={`
-                    flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
-                    ${
-                      isActive
-                        ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                        : 'text-sidebar-foreground hover:bg-sidebar-accent'
-                    }
-                  `}
-                >
-                  <Icon size={20} />
-                  <span className="font-medium">{item.label}</span>
-                </a>
+              <Link
+                key={item.path}
+                href={item.path}
+                onClick={() => setIsOpen(false)}
+                className={`
+                  flex items-center gap-3 px-4 py-3 rounded-lg transition-colors block
+                  ${
+                    isActive
+                      ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent'
+                  }
+                `}
+              >
+                <Icon size={20} />
+                <span className="font-medium">{item.label}</span>
               </Link>
             );
           })}
