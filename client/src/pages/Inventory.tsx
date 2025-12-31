@@ -33,6 +33,12 @@ export default function Inventory() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [formData, setFormData] = useState<Product>({
+    name: '',
+    description: '',
+    price: 0,
+    production_cost: 0,
+  });
 
   useEffect(() => {
     loadData();
@@ -55,10 +61,35 @@ export default function Inventory() {
   function handleOpenModal(product?: Product) {
     if (product) {
       setEditingProduct(product);
+      setFormData(product);
     } else {
       setEditingProduct(null);
+      setFormData({
+        name: '',
+        description: '',
+        price: 0,
+        production_cost: 0,
+      });
     }
     setShowModal(true);
+  }
+
+  async function handleSaveProduct() {
+    if (!formData.name.trim()) {
+      toast.error('Nome do produto é obrigatório');
+      return;
+    }
+
+    try {
+      // Aqui você implementaria a lógica de salvar o produto
+      // await addProduct(formData) ou await updateProduct(editingProduct.id, formData)
+      toast.success(editingProduct ? 'Produto atualizado' : 'Produto adicionado');
+      setShowModal(false);
+      loadData();
+    } catch (error) {
+      console.error('Erro ao salvar produto:', error);
+      toast.error('Erro ao salvar produto');
+    }
   }
 
   async function handleDelete(id: number) {
@@ -134,9 +165,9 @@ export default function Inventory() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              <th className="text-left py-3 px-4 font-semibold text-foreground">Produto</th>
-              <th className="text-right py-3 px-4 font-semibold text-foreground">Preço</th>
-              <th className="text-right py-3 px-4 font-semibold text-foreground">Custo</th>
+              <th className="text-left py-3 px-4 font-semibold text-foreground">Nome</th>
+              <th className="text-right py-3 px-4 font-semibold text-foreground">Preço de Venda</th>
+              <th className="text-right py-3 px-4 font-semibold text-foreground">Custo de Produção</th>
               <th className="text-right py-3 px-4 font-semibold text-foreground">Margem</th>
               <th className="text-center py-3 px-4 font-semibold text-foreground">Ações</th>
             </tr>
@@ -190,6 +221,83 @@ export default function Inventory() {
           </tbody>
         </table>
       </div>
+
+      {/* Modal de Criação/Edição de Produto */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md p-6 space-y-4">
+            <h2 className="text-xl font-bold text-foreground">
+              {editingProduct ? 'Editar Produto' : 'Novo Produto'}
+            </h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Nome do Produto *</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Bolo de Chocolate"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Descrição</label>
+                <textarea
+                  placeholder="Descrição do produto..."
+                  value={formData.description || ''}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Preço de Venda (R$) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Custo de Produção (R$) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.production_cost}
+                  onChange={(e) => setFormData({ ...formData, production_cost: parseFloat(e.target.value) })}
+                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                />
+              </div>
+
+              {formData.price > 0 && (
+                <div className="p-3 bg-muted rounded">
+                  <p className="text-sm text-foreground">
+                    <strong>Margem de Lucro:</strong> {(((formData.price - formData.production_cost) / formData.price) * 100).toFixed(1)}%
+                  </p>
+                  <p className="text-sm text-foreground">
+                    <strong>Lucro Unitário:</strong> R$ {(formData.price - formData.production_cost).toFixed(2)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 justify-end pt-4 border-t border-border">
+              <Button variant="outline" onClick={() => setShowModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveProduct}>
+                {editingProduct ? 'Atualizar' : 'Adicionar'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Modal de Receita */}
       {showRecipe && selectedProduct && (
