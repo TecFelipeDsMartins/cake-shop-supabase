@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { Menu, X, BarChart3, Package, ShoppingCart, DollarSign, FileText, LogOut, Leaf, Tag } from 'lucide-react';
+import { Menu, X, BarChart3, Package, ShoppingCart, DollarSign, FileText, LogOut, Leaf, Tag, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
@@ -12,6 +12,7 @@ export default function Sidebar({ currentPath }: SidebarProps) {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: BarChart3 },
+    { path: '/recipes', label: 'Receitas', icon: BookOpen },
     { path: '/ingredients', label: 'Insumos', icon: Leaf },
     { path: '/inventory', label: 'Estoque', icon: Package },
     { path: '/sales', label: 'Vendas', icon: ShoppingCart },

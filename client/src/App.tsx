@@ -12,6 +12,7 @@ import Sales from "./pages/Sales";
 import Finances from "./pages/Finances";
 import Reports from "./pages/Reports";
 import Categories from "./pages/Categories";
+import Recipes from "./pages/Recipes";
 
 
 function Router() {
@@ -31,6 +32,7 @@ function Router() {
             <Route path="/finances" component={Finances} />
             <Route path="/reports" component={Reports} />
             <Route path="/categories" component={Categories} />
+            <Route path="/recipes" component={Recipes} />
             <Route path="/" component={Dashboard} />
             <Route path="/404" component={NotFound} />
             <Route component={NotFound} />
