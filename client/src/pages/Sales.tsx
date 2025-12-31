@@ -48,7 +48,13 @@ export default function Sales() {
   });
 
   const paymentMethods = ['Dinheiro', 'Cartão', 'Pix', 'Cheque'];
-  const products = ['Bolo de Chocolate', 'Cupcakes Variados', 'Pão de Forma', 'Croissant'];
+  const productPrices: Record<string, number> = {
+    'Bolo de Chocolate': 85.00,
+    'Cupcakes Variados': 3.50,
+    'Pão de Forma': 12.00,
+    'Croissant': 5.50,
+  };
+  const products = Object.keys(productPrices);
 
   const handleOpenModal = (sale?: Sale) => {
     if (sale) {
@@ -297,12 +303,21 @@ export default function Sales() {
                   <label className="block text-sm font-medium text-foreground mb-2">Produto *</label>
                   <select
                     value={formData.product}
-                    onChange={(e) => setFormData({ ...formData, product: e.target.value })}
+                    onChange={(e) => {
+                      const selectedProduct = e.target.value;
+                      setFormData({
+                        ...formData,
+                        product: selectedProduct,
+                        unitPrice: productPrices[selectedProduct] || 0,
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     <option value="">Selecione um produto</option>
                     {products.map(product => (
-                      <option key={product} value={product}>{product}</option>
+                      <option key={product} value={product}>
+                        {product} (R$ {productPrices[product].toFixed(2)})
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -324,9 +339,10 @@ export default function Sales() {
                     <input
                       type="number"
                       step="0.01"
-                      value={formData.unitPrice}
-                      onChange={(e) => setFormData({ ...formData, unitPrice: parseFloat(e.target.value) })}
+                      value={formData.unitPrice || 0}
+                      onChange={(e) => setFormData({ ...formData, unitPrice: parseFloat(e.target.value) || 0 })}
                       className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                      placeholder="Preço será preenchido automaticamente"
                     />
                   </div>
                 </div>

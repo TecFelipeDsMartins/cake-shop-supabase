@@ -189,8 +189,8 @@ export default function ProductModal({
                   <input
                     type="number"
                     step="0.01"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                    value={formData.price || 0}
+                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
                     placeholder="0.00"
                   />
@@ -201,7 +201,7 @@ export default function ProductModal({
                   <input
                     type="number"
                     step="0.01"
-                    value={totalProductionCost.toFixed(2)}
+                    value={(totalProductionCost || 0).toFixed(2)}
                     disabled
                     className="w-full px-3 py-2 border border-border rounded-lg bg-muted text-foreground opacity-75 cursor-not-allowed"
                   />
@@ -270,8 +270,8 @@ export default function ProductModal({
                       <input
                         type="number"
                         step="0.01"
-                        value={ingredientQuantity}
-                        onChange={(e) => setIngredientQuantity(parseFloat(e.target.value))}
+                        value={ingredientQuantity || 0}
+                        onChange={(e) => setIngredientQuantity(parseFloat(e.target.value) || 0)}
                         className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
                         placeholder="0"
                       />
