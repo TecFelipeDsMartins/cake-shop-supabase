@@ -28,6 +28,14 @@ const mockIngredients = [
   { id: 6, name: 'Fermento em Pó', unit: 'kg', unitCost: 18.00 },
 ];
 
+const mockProcessedIngredients = [
+  { id: 101, name: 'Brigadeiro', unit: 'kg', unitCost: 9.80 },
+  { id: 102, name: 'Calda de Chocolate', unit: 'L', unitCost: 15.50 },
+  { id: 103, name: 'Ganache', unit: 'kg', unitCost: 22.00 },
+  { id: 104, name: 'Cobertura de Morango', unit: 'kg', unitCost: 18.50 },
+  { id: 105, name: 'Creme de Baunilha', unit: 'L', unitCost: 12.00 },
+];
+
 export default function Inventory() {
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<InventoryProduct | null>(null);
@@ -299,6 +307,7 @@ export default function Inventory() {
         onSave={handleSaveProduct}
         product={editingProduct as any}
         availableIngredients={mockIngredients}
+        processedIngredients={mockProcessedIngredients}
       />
 
       {products.filter(p => p.status === 'danger').length > 0 && (

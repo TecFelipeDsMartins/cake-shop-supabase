@@ -20,6 +20,7 @@ interface ProductModalProps {
   onSave: (product: Product) => void;
   product?: Product;
   availableIngredients: Array<{ id: number; name: string; unit: string; unitCost: number }>;
+  processedIngredients?: Array<{ id: number; name: string; unit: string; unitCost: number }>;
 }
 
 export default function ProductModal({
@@ -28,6 +29,7 @@ export default function ProductModal({
   onSave,
   product,
   availableIngredients,
+  processedIngredients = [],
 }: ProductModalProps) {
   const [formData, setFormData] = useState<Product>(
     product || {
@@ -238,11 +240,24 @@ export default function ProductModal({
                         className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
                       >
                         <option value="">Selecione um insumo</option>
-                        {availableIngredients.map(ing => (
-                          <option key={ing.id} value={ing.id}>
-                            {ing.name} (R$ {ing.unitCost.toFixed(2)}/{ing.unit})
-                          </option>
-                        ))}
+                        {availableIngredients.length > 0 && (
+                          <optgroup label="Insumos Base">
+                            {availableIngredients.map(ing => (
+                              <option key={ing.id} value={ing.id}>
+                                {ing.name} (R$ {ing.unitCost.toFixed(2)}/{ing.unit})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {processedIngredients.length > 0 && (
+                          <optgroup label="Insumos Processados">
+                            {processedIngredients.map(ing => (
+                              <option key={ing.id} value={ing.id}>
+                                {ing.name} (R$ {ing.unitCost.toFixed(2)}/{ing.unit})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
                       </select>
                     </div>
 
