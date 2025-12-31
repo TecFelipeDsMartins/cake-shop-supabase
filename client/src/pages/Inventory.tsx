@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Edit2, Trash2, Eye } from 'lucide-react';
 import { getProducts, deleteProduct, getIngredients } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
+import ProductModal from '@/components/ProductModal';
 
 interface Product {
   id?: number;
