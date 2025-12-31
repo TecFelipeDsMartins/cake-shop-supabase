@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Trash2, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, X } from 'lucide-react';
 import { getProducts, deleteProduct, getIngredients } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
@@ -14,6 +14,17 @@ interface Product {
   production_cost: number;
   profit_margin?: number;
   created_at?: string;
+  ingredients?: ProductIngredient[];
+}
+
+interface ProductIngredient {
+  id?: string;
+  ingredient_id: number;
+  ingredient_name: string;
+  quantity: number;
+  unit: string;
+  cost: number;
+  is_processed: boolean;
 }
 
 interface Ingredient {
@@ -22,6 +33,12 @@ interface Ingredient {
   unit?: string;
   cost: number;
   is_processed?: boolean;
+}
+
+interface Category {
+  id: number;
+  name: string;
+  color?: string;
 }
 
 export default function Inventory() {
@@ -33,12 +50,24 @@ export default function Inventory() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [categories] = useState<Category[]>([
+    { id: 1, name: 'Bolos', color: '#D4A574' },
+    { id: 2, name: 'Doces', color: '#E8B4B8' },
+    { id: 3, name: 'Tortas', color: '#C4A69D' },
+    { id: 4, name: 'Cupcakes', color: '#F4D4C8' },
+  ]);
+
   const [formData, setFormData] = useState<Product>({
     name: '',
     description: '',
+    category_id: 1,
     price: 0,
     production_cost: 0,
+    ingredients: [],
   });
+
+  const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
+  const [ingredientQuantity, setIngredientQuantity] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -67,16 +96,65 @@ export default function Inventory() {
       setFormData({
         name: '',
         description: '',
+        category_id: 1,
         price: 0,
         production_cost: 0,
+        ingredients: [],
       });
     }
     setShowModal(true);
   }
 
+  function handleAddIngredient() {
+    if (!selectedIngredient || ingredientQuantity <= 0) {
+      toast.error('Selecione um insumo e quantidade válida');
+      return;
+    }
+
+    const newIngredient: ProductIngredient = {
+      id: Math.random().toString(),
+      ingredient_id: selectedIngredient.id || 0,
+      ingredient_name: selectedIngredient.name,
+      quantity: ingredientQuantity,
+      unit: selectedIngredient.unit || 'kg',
+      cost: (selectedIngredient.cost || 0) * ingredientQuantity,
+      is_processed: selectedIngredient.is_processed || false,
+    };
+
+    const updatedIngredients = [...(formData.ingredients || []), newIngredient];
+    const totalCost = updatedIngredients.reduce((sum, ing) => sum + ing.cost, 0);
+
+    setFormData({
+      ...formData,
+      ingredients: updatedIngredients,
+      production_cost: totalCost,
+    });
+
+    setSelectedIngredient(null);
+    setIngredientQuantity(0);
+    toast.success('Insumo adicionado à ficha técnica');
+  }
+
+  function handleRemoveIngredient(id?: string) {
+    if (!id) return;
+    const updatedIngredients = (formData.ingredients || []).filter(ing => ing.id !== id);
+    const totalCost = updatedIngredients.reduce((sum, ing) => sum + ing.cost, 0);
+
+    setFormData({
+      ...formData,
+      ingredients: updatedIngredients,
+      production_cost: totalCost,
+    });
+  }
+
   async function handleSaveProduct() {
     if (!formData.name.trim()) {
       toast.error('Nome do produto é obrigatório');
+      return;
+    }
+
+    if (formData.price <= 0) {
+      toast.error('Preço de venda deve ser maior que 0');
       return;
     }
 
@@ -112,6 +190,10 @@ export default function Inventory() {
   const totalValue = filteredProducts.reduce((sum, p) => sum + p.price, 0);
   const totalCost = filteredProducts.reduce((sum, p) => sum + p.production_cost, 0);
   const totalProfit = totalValue - totalCost;
+
+  // Separar insumos base e processados
+  const baseIngredients = ingredients.filter(ing => !ing.is_processed);
+  const processedIngredients = ingredients.filter(ing => ing.is_processed);
 
   if (loading) {
     return (
@@ -224,67 +306,195 @@ export default function Inventory() {
 
       {/* Modal de Criação/Edição de Produto */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md p-6 space-y-4">
-            <h2 className="text-xl font-bold text-foreground">
-              {editingProduct ? 'Editar Produto' : 'Novo Produto'}
-            </h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <Card className="w-full max-w-2xl p-6 space-y-4 my-8">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-foreground">
+                {editingProduct ? 'Editar Produto' : 'Novo Produto'}
+              </h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Nome do Produto *</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Bolo de Chocolate"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
-                />
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Informações Básicas */}
+              <div className="border-b border-border pb-4">
+                <h3 className="font-semibold text-foreground mb-3">Informações do Produto</h3>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Nome do Produto *</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Bolo de Chocolate"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Descrição</label>
+                    <textarea
+                      placeholder="Descrição do produto..."
+                      value={formData.description || ''}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Categoria</label>
+                    <select
+                      value={formData.category_id || 1}
+                      onChange={(e) => setFormData({ ...formData, category_id: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                    >
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Preço de Venda (R$) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.price}
+                        onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                        className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Custo de Produção (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.production_cost}
+                        disabled
+                        className="w-full px-3 py-2 border border-border rounded bg-muted text-muted-foreground"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Calculado automaticamente</p>
+                    </div>
+                  </div>
+
+                  {formData.price > 0 && (
+                    <div className="p-3 bg-muted rounded">
+                      <p className="text-sm text-foreground">
+                        <strong>Margem de Lucro:</strong> {(((formData.price - formData.production_cost) / formData.price) * 100).toFixed(1)}%
+                      </p>
+                      <p className="text-sm text-foreground">
+                        <strong>Lucro Unitário:</strong> R$ {(formData.price - formData.production_cost).toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Descrição</label>
-                <textarea
-                  placeholder="Descrição do produto..."
-                  value={formData.description || ''}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
-                  rows={3}
-                />
+              {/* Ficha Técnica */}
+              <div className="border-b border-border pb-4">
+                <h3 className="font-semibold text-foreground mb-3">Ficha Técnica - Insumos Utilizados</h3>
+
+                {/* Adicionar Insumo */}
+                <div className="space-y-3 mb-4 p-3 bg-muted rounded">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Selecione um Insumo</label>
+                    <select
+                      value={selectedIngredient?.id || ''}
+                      onChange={(e) => {
+                        const ing = ingredients.find(i => i.id === parseInt(e.target.value));
+                        setSelectedIngredient(ing || null);
+                      }}
+                      className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                    >
+                      <option value="">-- Selecione um insumo --</option>
+                      {baseIngredients.length > 0 && (
+                        <>
+                          <optgroup label="Insumos Base">
+                            {baseIngredients.map(ing => (
+                              <option key={ing.id} value={ing.id}>
+                                {ing.name} (R$ {ing.cost}/kg)
+                              </option>
+                            ))}
+                          </optgroup>
+                        </>
+                      )}
+                      {processedIngredients.length > 0 && (
+                        <>
+                          <optgroup label="Insumos Processados">
+                            {processedIngredients.map(ing => (
+                              <option key={ing.id} value={ing.id}>
+                                {ing.name} (R$ {ing.cost}/kg) ⭐
+                              </option>
+                            ))}
+                          </optgroup>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Quantidade ({selectedIngredient?.unit || 'kg'})</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ingredientQuantity}
+                      onChange={(e) => setIngredientQuantity(parseFloat(e.target.value))}
+                      className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                    />
+                  </div>
+
+                  <Button onClick={handleAddIngredient} className="w-full">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar à Ficha
+                  </Button>
+                </div>
+
+                {/* Lista de Insumos */}
+                {(formData.ingredients || []).length > 0 ? (
+                  <div className="space-y-2">
+                    {formData.ingredients?.map(ing => (
+                      <div key={ing.id} className="flex items-center justify-between p-2 bg-muted rounded">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-foreground">
+                            {ing.ingredient_name} {ing.is_processed && '⭐'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {ing.quantity} {ing.unit} × R$ {((ing.cost / ing.quantity) || 0).toFixed(2)} = R$ {ing.cost.toFixed(2)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveIngredient(ing.id)}
+                          className="p-1 hover:bg-destructive/10 rounded text-destructive"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum insumo adicionado ainda</p>
+                )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Preço de Venda (R$) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Custo de Produção (R$) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.production_cost}
-                  onChange={(e) => setFormData({ ...formData, production_cost: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
-                />
-              </div>
-
-              {formData.price > 0 && (
-                <div className="p-3 bg-muted rounded">
-                  <p className="text-sm text-foreground">
-                    <strong>Margem de Lucro:</strong> {(((formData.price - formData.production_cost) / formData.price) * 100).toFixed(1)}%
-                  </p>
+              {/* Resumo */}
+              <div className="p-3 bg-accent/10 rounded">
+                <p className="text-sm text-foreground">
+                  <strong>Custo Total de Produção:</strong> R$ {formData.production_cost.toFixed(2)}
+                </p>
+                {formData.price > 0 && (
                   <p className="text-sm text-foreground">
                     <strong>Lucro Unitário:</strong> R$ {(formData.price - formData.production_cost).toFixed(2)}
                   </p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             <div className="flex gap-2 justify-end pt-4 border-t border-border">
