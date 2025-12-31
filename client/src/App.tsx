@@ -1,27 +1,41 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+import Sidebar from "./components/Sidebar";
+import Dashboard from "./pages/Dashboard";
+import Inventory from "./pages/Inventory";
+import Sales from "./pages/Sales";
+import Finances from "./pages/Finances";
+import Reports from "./pages/Reports";
 
 
 function Router() {
+  const [location] = useLocation();
+
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+    <div className="flex h-screen bg-background">
+      <Sidebar currentPath={location} />
+      
+      <main className="flex-1 overflow-auto lg:ml-0">
+        <div className="p-4 lg:p-8">
+          <Switch>
+            <Route path="/dashboard" component={Dashboard} />
+            <Route path="/inventory" component={Inventory} />
+            <Route path="/sales" component={Sales} />
+            <Route path="/finances" component={Finances} />
+            <Route path="/reports" component={Reports} />
+            <Route path="/" component={Dashboard} />
+            <Route path="/404" component={NotFound} />
+            <Route component={NotFound} />
+          </Switch>
+        </div>
+      </main>
+    </div>
   );
 }
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
   return (
