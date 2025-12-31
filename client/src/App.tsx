@@ -14,6 +14,7 @@ import Reports from "./pages/Reports";
 import Categories from "./pages/Categories";
 import Recipes from "./pages/Recipes";
 import Accounts from "./pages/Accounts";
+import Customers from "./pages/Customers";
 
 
 function Router() {
@@ -30,6 +31,7 @@ function Router() {
             <Route path="/ingredients" component={Ingredients} />
             <Route path="/inventory" component={Inventory} />
             <Route path="/sales" component={Sales} />
+            <Route path="/customers" component={Customers} />
             <Route path="/finances" component={Finances} />
             <Route path="/reports" component={Reports} />
             <Route path="/accounts" component={Accounts} />

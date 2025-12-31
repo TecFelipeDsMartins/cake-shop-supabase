@@ -1,12 +1,19 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, User } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+
+interface Customer {
+  id: number;
+  name: string;
+}
 
 interface Sale {
   id: number;
   date: string;
+  customerId?: number;
+  customerName?: string;
   product: string;
   quantity: number;
   unitPrice: number;
@@ -25,21 +32,30 @@ export default function Sales() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
+  const [customers] = useState<Customer[]>([
+    { id: 1, name: 'Maria Silva' },
+    { id: 2, name: 'João Santos' },
+    { id: 3, name: 'Ana Costa' },
+  ]);
+
   const [sales, setSales] = useState<Sale[]>([
-    { id: 1, date: '2024-12-28', product: 'Bolo de Chocolate', quantity: 2, unitPrice: 85.00, totalPrice: 170.00, paymentMethod: 'Dinheiro', status: 'completed' },
-    { id: 2, date: '2024-12-28', product: 'Cupcakes Variados', quantity: 12, unitPrice: 3.50, totalPrice: 42.00, paymentMethod: 'Cartão', status: 'completed' },
-    { id: 3, date: '2024-12-27', product: 'Croissant', quantity: 10, unitPrice: 5.50, totalPrice: 55.00, paymentMethod: 'Pix', status: 'completed' },
-    { id: 4, date: '2024-12-27', product: 'Pão de Forma', quantity: 5, unitPrice: 12.00, totalPrice: 60.00, paymentMethod: 'Dinheiro', status: 'completed' },
-    { id: 5, date: '2024-12-26', product: 'Bolo de Chocolate', quantity: 1, unitPrice: 85.00, totalPrice: 85.00, paymentMethod: 'Cartão', status: 'completed' },
+    { id: 1, date: '2024-12-28', customerId: 1, customerName: 'Maria Silva', product: 'Bolo de Chocolate', quantity: 2, unitPrice: 85.00, totalPrice: 170.00, paymentMethod: 'Dinheiro', status: 'completed' },
+    { id: 2, date: '2024-12-28', customerName: 'Cliente Anônimo', product: 'Cupcakes Variados', quantity: 12, unitPrice: 3.50, totalPrice: 42.00, paymentMethod: 'Cartão', status: 'completed' },
+    { id: 3, date: '2024-12-27', customerId: 2, customerName: 'João Santos', product: 'Croissant', quantity: 10, unitPrice: 5.50, totalPrice: 55.00, paymentMethod: 'Pix', status: 'completed' },
+    { id: 4, date: '2024-12-27', customerName: 'Cliente Anônimo', product: 'Pão de Forma', quantity: 5, unitPrice: 12.00, totalPrice: 60.00, paymentMethod: 'Dinheiro', status: 'completed' },
+    { id: 5, date: '2024-12-26', customerId: 3, customerName: 'Ana Costa', product: 'Bolo de Chocolate', quantity: 1, unitPrice: 85.00, totalPrice: 85.00, paymentMethod: 'Cartão', status: 'completed' },
   ]);
 
   const [formData, setFormData] = useState<{
+    customerId?: number;
+    customerName?: string;
     product: string;
     quantity: number;
     unitPrice: number;
     paymentMethod: string;
     status: 'completed' | 'pending' | 'cancelled';
   }>({
+    customerName: 'Cliente Anônimo',
     product: '',
     quantity: 1,
     unitPrice: 0,
@@ -60,6 +76,8 @@ export default function Sales() {
     if (sale) {
       setEditingId(sale.id);
       setFormData({
+        customerId: sale.customerId,
+        customerName: sale.customerName,
         product: sale.product,
         quantity: sale.quantity,
         unitPrice: sale.unitPrice,
@@ -69,6 +87,7 @@ export default function Sales() {
     } else {
       setEditingId(null);
       setFormData({
+        customerName: 'Cliente Anônimo',
         product: '',
         quantity: 1,
         unitPrice: 0,
@@ -98,6 +117,8 @@ export default function Sales() {
       const newSale: Sale = {
         id: Math.max(...sales.map(s => s.id), 0) + 1,
         date: today,
+        customerId: formData.customerId,
+        customerName: formData.customerName,
         ...formData,
         totalPrice,
       };
@@ -235,8 +256,9 @@ export default function Sales() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Data</th>
-                <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Produto</th>
+                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Data</th>
+                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Cliente</th>
+                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Produto</th>
                 <th className="text-center py-3 px-4 font-semibold text-muted-foreground text-sm">Qtd</th>
                 <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Preço Unit.</th>
                 <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Total</th>
@@ -245,11 +267,12 @@ export default function Sales() {
                 <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Ações</th>
               </tr>
             </thead>
-            <tbody>
-              {sales.map((sale) => (
-                <tr key={sale.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                  <td className="py-3 px-4 text-foreground text-sm">{new Date(sale.date).toLocaleDateString('pt-BR')}</td>
-                  <td className="py-3 px-4 text-foreground font-medium">{sale.product}</td>
+              <tbody>
+                {sales.map((sale) => (
+                  <tr key={sale.id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                    <td className="py-3 px-4 text-foreground text-sm">{new Date(sale.date).toLocaleDateString('pt-BR')}</td>
+                    <td className="py-3 px-4 text-foreground text-sm">{sale.customerName || 'Cliente Anônimo'}</td>
+                    <td className="py-3 px-4 text-foreground font-medium">{sale.product}</td>
                   <td className="text-center py-3 px-4 text-foreground">{sale.quantity}</td>
                   <td className="text-right py-3 px-4 text-foreground">R$ {sale.unitPrice.toFixed(2)}</td>
                   <td className="text-right py-3 px-4 font-semibold text-accent">R$ {sale.totalPrice.toFixed(2)}</td>
@@ -299,6 +322,38 @@ export default function Sales() {
               </h2>
 
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Cliente</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={formData.customerId || ''}
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        if (selectedId === 'anonymous') {
+                          setFormData({ ...formData, customerId: undefined, customerName: 'Cliente Anônimo' });
+                        } else if (selectedId) {
+                          const customer = customers.find(c => c.id === parseInt(selectedId));
+                          setFormData({ ...formData, customerId: parseInt(selectedId), customerName: customer?.name });
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                    >
+                      <option value="anonymous">Cliente Anônimo</option>
+                      {customers.map(customer => (
+                        <option key={customer.id} value={customer.id}>{customer.name}</option>
+                      ))}
+                    </select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-accent"
+                      title="Adicionar novo cliente"
+                    >
+                      <Plus size={16} />
+                    </Button>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">Produto *</label>
                   <select
