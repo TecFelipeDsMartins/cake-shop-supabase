@@ -6,7 +6,7 @@ import { Plus, Edit2, Trash2, Tag } from 'lucide-react';
 interface Category {
   id: number;
   name: string;
-  type: 'ingredient' | 'product' | 'expense' | 'payment';
+  type: 'ingredient' | 'product' | 'expense' | 'income' | 'transfer' | 'payment';
   description: string;
   color: string;
 }
@@ -14,7 +14,7 @@ interface Category {
 export default function Categories() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [selectedType, setSelectedType] = useState<'ingredient' | 'product' | 'expense' | 'payment'>('ingredient');
+  const [selectedType, setSelectedType] = useState<'ingredient' | 'product' | 'expense' | 'income' | 'transfer' | 'payment'>('ingredient');
 
   const [categories, setCategories] = useState<Category[]>([
     // Insumos
@@ -28,10 +28,21 @@ export default function Categories() {
     { id: 6, name: 'Cupcakes', type: 'product', description: 'Cupcakes variados', color: '#A0826D' },
     { id: 7, name: 'Pães', type: 'product', description: 'Pão de forma, francês, etc', color: '#9B8B7E' },
     
+    // Receitas
+    { id: 14, name: 'Vendas', type: 'income', description: 'Vendas de produtos', color: '#10b981' },
+    { id: 15, name: 'Serviços', type: 'income', description: 'Receita de serviços', color: '#34d399' },
+    { id: 16, name: 'Outros', type: 'income', description: 'Outras receitas', color: '#6ee7b7' },
+    
     // Despesas
-    { id: 8, name: 'Aluguel', type: 'expense', description: 'Aluguel do espaço', color: '#E74C3C' },
-    { id: 9, name: 'Utilidades', type: 'expense', description: 'Água, luz, gás', color: '#E67E22' },
-    { id: 10, name: 'Embalagem', type: 'expense', description: 'Caixas, sacolas, papel', color: '#F39C12' },
+    { id: 8, name: 'Matéria Prima', type: 'expense', description: 'Compra de ingredientes', color: '#E74C3C' },
+    { id: 9, name: 'Aluguel', type: 'expense', description: 'Aluguel do espaço', color: '#E67E22' },
+    { id: 10, name: 'Utilidades', type: 'expense', description: 'Água, luz, gás', color: '#F39C12' },
+    { id: 17, name: 'Funcionários', type: 'expense', description: 'Salários e encargos', color: '#d97706' },
+    { id: 18, name: 'Marketing', type: 'expense', description: 'Publicidade e marketing', color: '#f59e0b' },
+    { id: 19, name: 'Manutenção', type: 'expense', description: 'Manutenção de equipamentos', color: '#fbbf24' },
+    
+    // Transferências
+    { id: 20, name: 'Transferência', type: 'transfer', description: 'Transferência entre contas', color: '#3b82f6' },
     
     // Métodos de Pagamento
     { id: 11, name: 'Dinheiro', type: 'payment', description: 'Pagamento em dinheiro', color: '#27AE60' },
@@ -48,7 +59,9 @@ export default function Categories() {
   const typeLabels = {
     ingredient: 'Insumos',
     product: 'Produtos',
+    income: 'Receitas',
     expense: 'Despesas',
+    transfer: 'Transferências',
     payment: 'Métodos de Pagamento',
   };
 
@@ -196,7 +209,9 @@ export default function Categories() {
                   >
                     <option value="ingredient">Insumos</option>
                     <option value="product">Produtos</option>
+                    <option value="income">Receitas</option>
                     <option value="expense">Despesas</option>
+                    <option value="transfer">Transferências</option>
                     <option value="payment">Métodos de Pagamento</option>
                   </select>
                 </div>

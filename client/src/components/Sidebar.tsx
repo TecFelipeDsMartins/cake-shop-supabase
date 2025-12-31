@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { Menu, X, BarChart3, Package, ShoppingCart, DollarSign, FileText, LogOut, Leaf, Tag, BookOpen } from 'lucide-react';
+import { Menu, X, BarChart3, Package, ShoppingCart, DollarSign, FileText, LogOut, Leaf, Tag, BookOpen, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
@@ -18,6 +18,7 @@ export default function Sidebar({ currentPath }: SidebarProps) {
     { path: '/sales', label: 'Vendas', icon: ShoppingCart },
     { path: '/finances', label: 'Finanças', icon: DollarSign },
     { path: '/reports', label: 'Relatórios', icon: FileText },
+    { path: '/accounts', label: 'Contas', icon: Wallet },
     { path: '/categories', label: 'Categorias', icon: Tag },
   ];
 

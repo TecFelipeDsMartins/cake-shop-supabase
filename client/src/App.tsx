@@ -13,6 +13,7 @@ import Finances from "./pages/Finances";
 import Reports from "./pages/Reports";
 import Categories from "./pages/Categories";
 import Recipes from "./pages/Recipes";
+import Accounts from "./pages/Accounts";
 
 
 function Router() {
@@ -31,6 +32,7 @@ function Router() {
             <Route path="/sales" component={Sales} />
             <Route path="/finances" component={Finances} />
             <Route path="/reports" component={Reports} />
+            <Route path="/accounts" component={Accounts} />
             <Route path="/categories" component={Categories} />
             <Route path="/recipes" component={Recipes} />
             <Route path="/" component={Dashboard} />
