@@ -1,327 +1,220 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Trash2, AlertTriangle, Eye } from 'lucide-react';
-import ProductModal from '@/components/ProductModal';
-import RecipeCard, { RecipeIngredient } from '@/components/RecipeCard';
+import { Plus, Edit2, Trash2, Eye } from 'lucide-react';
+import { getProducts, deleteProduct, getIngredients } from '@/lib/supabaseClient';
+import { toast } from 'sonner';
 
-interface InventoryProduct {
-  id: number;
+interface Product {
+  id?: number;
   name: string;
-  description: string;
-  category: string;
+  description?: string;
+  category_id?: number;
   price: number;
-  cost: number;
-  quantity: number;
-  minQuantity: number;
-  unit: string;
-  status: 'good' | 'warning' | 'danger';
-  ingredients: RecipeIngredient[];
+  production_cost: number;
+  profit_margin?: number;
+  created_at?: string;
 }
 
-const mockIngredients = [
-  { id: 1, name: 'Farinha de Trigo', unit: 'kg', unitCost: 2.50 },
-  { id: 2, name: 'Açúcar Cristal', unit: 'kg', unitCost: 4.30 },
-  { id: 3, name: 'Ovos', unit: 'dúzia', unitCost: 28.00 },
-  { id: 4, name: 'Manteiga', unit: 'kg', unitCost: 35.00 },
-  { id: 5, name: 'Chocolate em Pó', unit: 'kg', unitCost: 52.00 },
-  { id: 6, name: 'Fermento em Pó', unit: 'kg', unitCost: 18.00 },
-];
-
-const mockProcessedIngredients = [
-  { id: 101, name: 'Brigadeiro', unit: 'kg', unitCost: 9.80 },
-  { id: 102, name: 'Calda de Chocolate', unit: 'L', unitCost: 15.50 },
-  { id: 103, name: 'Ganache', unit: 'kg', unitCost: 22.00 },
-  { id: 104, name: 'Cobertura de Morango', unit: 'kg', unitCost: 18.50 },
-  { id: 105, name: 'Creme de Baunilha', unit: 'L', unitCost: 12.00 },
-];
+interface Ingredient {
+  id?: number;
+  name: string;
+  unit?: string;
+  cost: number;
+  is_processed?: boolean;
+}
 
 export default function Inventory() {
   const [showModal, setShowModal] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<InventoryProduct | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showRecipe, setShowRecipe] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const [products, setProducts] = useState<InventoryProduct[]>([
-    {
-      id: 1,
-      name: 'Bolo de Chocolate',
-      description: 'Bolo de chocolate com cobertura de ganache',
-      category: 'Bolos',
-      price: 85.00,
-      cost: 25.50,
-      quantity: 12,
-      minQuantity: 5,
-      unit: 'unidade',
-      status: 'good',
-      ingredients: [
-        { id: 1, ingredientId: 1, ingredientName: 'Farinha de Trigo', quantity: 0.3, unit: 'kg', unitCost: 2.50 },
-        { id: 2, ingredientId: 5, ingredientName: 'Chocolate em Pó', quantity: 0.2, unit: 'kg', unitCost: 52.00 },
-      ],
-    },
-    {
-      id: 2,
-      name: 'Cupcakes Variados',
-      description: 'Cupcakes com diversos sabores',
-      category: 'Cupcakes',
-      price: 3.50,
-      cost: 1.20,
-      quantity: 48,
-      minQuantity: 24,
-      unit: 'unidade',
-      status: 'good',
-      ingredients: [
-        { id: 3, ingredientId: 1, ingredientName: 'Farinha de Trigo', quantity: 0.05, unit: 'kg', unitCost: 2.50 },
-        { id: 4, ingredientId: 3, ingredientName: 'Ovos', quantity: 0.1, unit: 'dúzia', unitCost: 28.00 },
-      ],
-    },
-    {
-      id: 3,
-      name: 'Pão de Forma',
-      description: 'Pão integral de forma',
-      category: 'Pães',
-      price: 12.00,
-      cost: 3.50,
-      quantity: 8,
-      minQuantity: 4,
-      unit: 'unidade',
-      status: 'good',
-      ingredients: [
-        { id: 5, ingredientId: 1, ingredientName: 'Farinha de Trigo', quantity: 0.5, unit: 'kg', unitCost: 2.50 },
-      ],
-    },
-    {
-      id: 4,
-      name: 'Croissant',
-      description: 'Croissant francês tradicional',
-      category: 'Croissants',
-      price: 5.50,
-      cost: 2.10,
-      quantity: 20,
-      minQuantity: 10,
-      unit: 'unidade',
-      status: 'good',
-      ingredients: [
-        { id: 6, ingredientId: 1, ingredientName: 'Farinha de Trigo', quantity: 0.1, unit: 'kg', unitCost: 2.50 },
-        { id: 7, ingredientId: 4, ingredientName: 'Manteiga', quantity: 0.05, unit: 'kg', unitCost: 35.00 },
-      ],
-    },
-  ]);
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const handleSaveProduct = (product: any) => {
-    if (editingProduct) {
-      setProducts(products.map(p => p.id === editingProduct.id ? { ...product, id: editingProduct.id, status: product.quantity >= product.minQuantity ? 'good' : 'warning' } : p));
+  async function loadData() {
+    setLoading(true);
+    try {
+      const productsData = await getProducts();
+      const ingredientsData = await getIngredients();
+      setProducts(productsData);
+      setIngredients(ingredientsData);
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+      toast.error('Erro ao carregar dados');
+    }
+    setLoading(false);
+  }
+
+  function handleOpenModal(product?: Product) {
+    if (product) {
+      setEditingProduct(product);
     } else {
-      setProducts([...products, { ...product, id: Math.max(...products.map(p => p.id), 0) + 1, status: product.quantity >= product.minQuantity ? 'good' : 'warning' }]);
+      setEditingProduct(null);
     }
-    setShowModal(false);
-    setEditingProduct(null);
-  };
+    setShowModal(true);
+  }
 
-  const handleDeleteProduct = (id: number) => {
+  async function handleDelete(id: number) {
     if (confirm('Tem certeza que deseja deletar este produto?')) {
-      setProducts(products.filter(p => p.id !== id));
+      try {
+        await deleteProduct(id);
+        toast.success('Produto deletado com sucesso');
+        loadData();
+      } catch (error) {
+        console.error('Erro ao deletar produto:', error);
+        toast.error('Erro ao deletar produto');
+      }
     }
-  };
+  }
 
-  const getStatusBadge = (status: string) => {
-    const badges = {
-      good: 'status-good',
-      warning: 'status-warning',
-      danger: 'status-danger',
-    };
-    return badges[status as keyof typeof badges] || 'status-good';
-  };
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const getStatusLabel = (status: string) => {
-    const labels = {
-      good: 'Em Estoque',
-      warning: 'Estoque Baixo',
-      danger: 'Crítico',
-    };
-    return labels[status as keyof typeof labels] || 'Desconhecido';
-  };
+  const totalValue = filteredProducts.reduce((sum, p) => sum + p.price, 0);
+  const totalCost = filteredProducts.reduce((sum, p) => sum + p.production_cost, 0);
+  const totalProfit = totalValue - totalCost;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Carregando produtos...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">Gestão de Estoque</h1>
-          <p className="text-muted-foreground">Controle de produtos e fichas técnicas</p>
-        </div>
-        <Button
-          className="flex items-center gap-2 bg-accent hover:bg-accent/90"
-          onClick={() => {
-            setEditingProduct(null);
-            setShowModal(true);
-          }}
-        >
-          <Plus size={18} />
+        <h1 className="text-3xl font-bold text-foreground">Estoque de Produtos</h1>
+        <Button onClick={() => handleOpenModal()} className="gap-2">
+          <Plus className="w-4 h-4" />
           Novo Produto
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Métricas */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-4">
           <p className="text-sm text-muted-foreground mb-1">Total de Produtos</p>
-          <p className="text-2xl font-bold text-foreground">{products.length}</p>
+          <p className="text-2xl font-bold text-foreground">{filteredProducts.length}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Estoque Baixo</p>
-          <p className="text-2xl font-bold text-amber-600">{products.filter(p => p.status === 'warning').length}</p>
+          <p className="text-sm text-muted-foreground mb-1">Valor Total</p>
+          <p className="text-2xl font-bold text-accent">R$ {totalValue.toFixed(2)}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Crítico</p>
-          <p className="text-2xl font-bold text-red-600">{products.filter(p => p.status === 'danger').length}</p>
+          <p className="text-sm text-muted-foreground mb-1">Custo Total</p>
+          <p className="text-2xl font-bold text-red-600">R$ {totalCost.toFixed(2)}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-sm text-muted-foreground mb-1">Lucro Total</p>
+          <p className="text-2xl font-bold text-green-600">R$ {totalProfit.toFixed(2)}</p>
         </Card>
       </div>
 
-      <Card className="p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Produtos em Estoque</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Produto</th>
-                <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Categoria</th>
-                <th className="text-center py-3 px-4 font-semibold text-muted-foreground text-sm">Quantidade</th>
-                <th className="text-center py-3 px-4 font-semibold text-muted-foreground text-sm">Mínimo</th>
-                <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Preço</th>
-                <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Custo</th>
-                <th className="text-center py-3 px-4 font-semibold text-muted-foreground text-sm">Status</th>
-                <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Ações</th>
+      {/* Busca */}
+      <input
+        type="text"
+        placeholder="Buscar produto..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground"
+      />
+
+      {/* Tabela de Produtos */}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="text-left py-3 px-4 font-semibold text-foreground">Produto</th>
+              <th className="text-right py-3 px-4 font-semibold text-foreground">Preço</th>
+              <th className="text-right py-3 px-4 font-semibold text-foreground">Custo</th>
+              <th className="text-right py-3 px-4 font-semibold text-foreground">Margem</th>
+              <th className="text-center py-3 px-4 font-semibold text-foreground">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredProducts.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="text-center py-8 text-muted-foreground">
+                  Nenhum produto encontrado
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {products.map((product) => (
-                <tr key={product.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                  <td className="py-3 px-4 text-foreground font-medium">{product.name}</td>
-                  <td className="py-3 px-4 text-muted-foreground text-sm">{product.category}</td>
-                  <td className="text-center py-3 px-4 text-foreground">{product.quantity} {product.unit}</td>
-                  <td className="text-center py-3 px-4 text-muted-foreground">{product.minQuantity} {product.unit}</td>
-                  <td className="text-right py-3 px-4 font-semibold text-accent">R$ {product.price.toFixed(2)}</td>
-                  <td className="text-right py-3 px-4 text-foreground">R$ {product.cost.toFixed(2)}</td>
-                  <td className="text-center py-3 px-4">
-                    <span className={`status-badge ${getStatusBadge(product.status)}`}>
-                      {getStatusLabel(product.status)}
-                    </span>
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-blue-600 hover:text-blue-700"
+            ) : (
+              filteredProducts.map(product => {
+                const margin = product.price - product.production_cost;
+                const marginPercent = product.price > 0 ? (margin / product.price) * 100 : 0;
+                return (
+                  <tr key={product.id} className="border-b border-border hover:bg-muted/50">
+                    <td className="py-3 px-4 text-foreground font-medium">{product.name}</td>
+                    <td className="py-3 px-4 text-right text-foreground">R$ {product.price.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-right text-muted-foreground">R$ {product.production_cost.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-right text-green-600 font-semibold">
+                      {marginPercent.toFixed(1)}%
+                    </td>
+                    <td className="py-3 px-4 text-center flex gap-2 justify-center">
+                      <button
                         onClick={() => {
                           setSelectedProduct(product);
                           setShowRecipe(true);
                         }}
+                        className="p-1 hover:bg-muted rounded"
                       >
-                        <Eye size={16} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-accent hover:text-accent/80"
-                        onClick={() => {
-                          setEditingProduct(product);
-                          setShowModal(true);
-                        }}
+                        <Eye className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenModal(product)}
+                        className="p-1 hover:bg-muted rounded"
                       >
-                        <Edit2 size={16} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700"
-                        onClick={() => handleDeleteProduct(product.id)}
+                        <Edit2 className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={() => product.id && handleDelete(product.id)}
+                        className="p-1 hover:bg-destructive/10 rounded"
                       >
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
+      {/* Modal de Receita */}
       {showRecipe && selectedProduct && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-foreground">Ficha Técnica - {selectedProduct.name}</h2>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowRecipe(false)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  ✕
-                </Button>
-              </div>
-
-              <RecipeCard
-                productName={selectedProduct.name}
-                ingredients={selectedProduct.ingredients}
-                onAddIngredient={() => {}}
-                onRemoveIngredient={() => {}}
-                onEditIngredient={() => {}}
-                availableIngredients={mockIngredients}
-              />
-
-              <div className="mt-6 pt-6 border-t border-border">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-accent/10 rounded-lg">
-                    <p className="text-sm text-muted-foreground mb-1">Preço de Venda</p>
-                    <p className="text-2xl font-bold text-accent">R$ {selectedProduct.price.toFixed(2)}</p>
-                  </div>
-                  <div className="p-4 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                    <p className="text-sm text-muted-foreground mb-1">Lucro Unitário</p>
-                    <p className="text-2xl font-bold text-green-600">R$ {(selectedProduct.price - selectedProduct.cost).toFixed(2)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end pt-6 border-t border-border mt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowRecipe(false)}
-                >
-                  Fechar
-                </Button>
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-foreground">Ficha Técnica</h2>
+              <button
+                onClick={() => setShowRecipe(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-semibold text-foreground mb-2">Informações do Produto</h3>
+                <p className="text-foreground"><strong>Nome:</strong> {selectedProduct.name}</p>
+                <p className="text-foreground"><strong>Preço:</strong> R$ {selectedProduct.price.toFixed(2)}</p>
+                <p className="text-foreground"><strong>Custo:</strong> R$ {selectedProduct.production_cost.toFixed(2)}</p>
+                <p className="text-foreground"><strong>Margem:</strong> {(((selectedProduct.price - selectedProduct.production_cost) / selectedProduct.price) * 100).toFixed(1)}%</p>
               </div>
             </div>
           </Card>
         </div>
-      )}
-
-      <ProductModal
-        isOpen={showModal}
-        onClose={() => {
-          setShowModal(false);
-          setEditingProduct(null);
-        }}
-        onSave={handleSaveProduct}
-        product={editingProduct as any}
-        availableIngredients={mockIngredients}
-        processedIngredients={mockProcessedIngredients}
-      />
-
-      {products.filter(p => p.status === 'danger').length > 0 && (
-        <Card className="p-6 border-l-4 border-l-red-500 bg-red-50 dark:bg-red-950/20">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="text-red-600 flex-shrink-0 mt-1" size={20} />
-            <div>
-              <h3 className="font-semibold text-red-900 dark:text-red-100">Atenção - Produtos com Estoque Crítico</h3>
-              <p className="text-sm text-red-800 dark:text-red-200 mt-1">
-                Você tem {products.filter(p => p.status === 'danger').length} produto(s) com estoque crítico. Considere aumentar a produção ou verificar as fichas técnicas.
-              </p>
-            </div>
-          </div>
-        </Card>
       )}
     </div>
   );
