@@ -12,6 +12,7 @@ interface Customer {
   city?: string;
   state?: string;
   zipCode?: string;
+  birthDate?: string;
   notes?: string;
   createdAt: string;
   totalPurchases: number;
@@ -33,6 +34,7 @@ export default function Customers() {
       city: 'São Paulo',
       state: 'SP',
       zipCode: '01234-567',
+      birthDate: '1990-01-15',
       notes: 'Cliente VIP',
       createdAt: '2024-01-15',
       totalPurchases: 12,
@@ -47,6 +49,7 @@ export default function Customers() {
       city: 'São Paulo',
       state: 'SP',
       zipCode: '02345-678',
+      birthDate: '1985-12-20',
       notes: 'Compras regulares',
       createdAt: '2024-02-20',
       totalPurchases: 8,
@@ -61,6 +64,7 @@ export default function Customers() {
       city: 'São Paulo',
       state: 'SP',
       zipCode: '03456-789',
+      birthDate: '1992-12-10',
       notes: 'Pedidos para eventos',
       createdAt: '2024-03-10',
       totalPurchases: 5,
@@ -76,6 +80,7 @@ export default function Customers() {
     city: '',
     state: '',
     zipCode: '',
+    birthDate: '',
     notes: '',
   });
 
@@ -90,6 +95,7 @@ export default function Customers() {
         city: customer.city || '',
         state: customer.state || '',
         zipCode: customer.zipCode || '',
+        birthDate: customer.birthDate || '',
         notes: customer.notes || '',
       });
     } else {
@@ -102,6 +108,7 @@ export default function Customers() {
         city: '',
         state: '',
         zipCode: '',
+        birthDate: '',
         notes: '',
       });
     }
@@ -350,6 +357,16 @@ export default function Customers() {
                       placeholder="01234-567"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Data de Aniversário</label>
+                  <input
+                    type="date"
+                    value={formData.birthDate}
+                    onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
                 </div>
 
                 <div>

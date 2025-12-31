@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { TrendingUp, Package, ShoppingCart, AlertCircle } from 'lucide-react';
+import { TrendingUp, Package, ShoppingCart, AlertCircle, Cake } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
@@ -10,6 +10,21 @@ export default function Dashboard() {
     lowStockItems: 3,
     monthlyGrowth: 12.5,
   });
+
+  const birthdayCustomers = [
+    { id: 2, name: 'Joao Santos', birthDate: '1985-12-20', age: 39 },
+    { id: 3, name: 'Ana Costa', birthDate: '1992-12-10', age: 32 },
+  ];
+
+  const getMonthBirthdayCustomers = () => {
+    const currentMonth = new Date().getMonth() + 1;
+    return birthdayCustomers.filter(customer => {
+      const birthMonth = parseInt(customer.birthDate.split('-')[1]);
+      return birthMonth === currentMonth;
+    });
+  };
+
+  const monthBirthdayCustomers = getMonthBirthdayCustomers();
 
   const salesData = [
     { date: '01/12', sales: 1200, revenue: 2400 },
@@ -35,7 +50,7 @@ export default function Dashboard() {
         <p className="text-muted-foreground">Bem-vindo ao seu painel de controle</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="metric-card">
           <div className="flex items-start justify-between">
             <div>
@@ -79,7 +94,42 @@ export default function Dashboard() {
           </div>
           <p className="text-xs text-muted-foreground mt-4">Produtos em estoque</p>
         </div>
+
+        <div className="metric-card">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="metric-label">Aniversarios</p>
+              <p className="metric-value text-rose-600 dark:text-rose-400">{monthBirthdayCustomers.length}</p>
+            </div>
+            <Cake className="text-rose-500" size={24} />
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">Clientes este mes</p>
+        </div>
       </div>
+
+      {monthBirthdayCustomers.length > 0 && (
+        <Card className="p-6 border-rose-200 dark:border-rose-900/30 bg-rose-50/50 dark:bg-rose-900/10">
+          <div className="flex items-center gap-3 mb-4">
+            <Cake className="text-rose-500" size={24} />
+            <h2 className="text-lg font-semibold text-foreground">Aniversariantes do Mes</h2>
+          </div>
+          <div className="space-y-3">
+            {monthBirthdayCustomers.map((customer) => (
+              <div key={customer.id} className="flex items-center justify-between p-3 bg-white dark:bg-card rounded-lg">
+                <div>
+                  <p className="font-medium text-foreground">{customer.name}</p>
+                  <p className="text-sm text-muted-foreground">{customer.age} anos</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                    {new Date(customer.birthDate).toLocaleDateString('pt-BR', { month: 'long', day: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
