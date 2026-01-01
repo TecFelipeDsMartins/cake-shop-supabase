@@ -2,7 +2,15 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Edit2, Trash2, Eye, X } from 'lucide-react';
-import { getProducts, deleteProduct, getIngredients } from '@/lib/supabaseClient';
+import { 
+  getProductsWithIngredients, 
+  addProduct, 
+  updateProduct,
+  deleteProduct, 
+  getIngredients,
+  addProductIngredient,
+  deleteProductIngredientsByProductId
+} from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
 interface Product {
@@ -18,7 +26,8 @@ interface Product {
 }
 
 interface ProductIngredient {
-  id?: string;
+  id?: number;
+  product_id?: number;
   ingredient_id: number;
   ingredient_name: string;
   quantity: number;
@@ -97,9 +106,9 @@ export default function Inventory() {
   async function loadData() {
     setLoading(true);
     try {
-      const productsData = await getProducts();
+      const productsData = await getProductsWithIngredients();
       setProducts(productsData);
-      // Tentar carregar insumos do Supabase, mas usar dados de exemplo como fallback
+      
       try {
         const ingredientsData = await getIngredients();
         if (ingredientsData && ingredientsData.length > 0) {
@@ -113,7 +122,7 @@ export default function Inventory() {
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       setIngredients(exampleIngredients);
-      toast.error('Usando dados de exemplo');
+      toast.error('Erro ao carregar produtos');
     }
     setLoading(false);
   }
@@ -133,6 +142,8 @@ export default function Inventory() {
         ingredients: [],
       });
     }
+    setSelectedIngredient(null);
+    setIngredientQuantity(0);
     setShowModal(true);
   }
 
@@ -143,7 +154,6 @@ export default function Inventory() {
     }
 
     const newIngredient: ProductIngredient = {
-      id: Math.random().toString(),
       ingredient_id: selectedIngredient.id || 0,
       ingredient_name: selectedIngredient.name,
       quantity: ingredientQuantity,
@@ -166,9 +176,8 @@ export default function Inventory() {
     toast.success('Insumo adicionado à ficha técnica');
   }
 
-  function handleRemoveIngredient(id?: string) {
-    if (!id) return;
-    const updatedIngredients = (formData.ingredients || []).filter(ing => ing.id !== id);
+  function handleRemoveIngredient(index: number) {
+    const updatedIngredients = (formData.ingredients || []).filter((_, i) => i !== index);
     const totalCost = updatedIngredients.reduce((sum, ing) => sum + ing.cost, 0);
 
     setFormData({
@@ -190,9 +199,49 @@ export default function Inventory() {
     }
 
     try {
-      // Aqui você implementaria a lógica de salvar o produto
-      // await addProduct(formData) ou await updateProduct(editingProduct.id, formData)
-      toast.success(editingProduct ? 'Produto atualizado' : 'Produto adicionado');
+      let productId: number;
+
+      if (editingProduct?.id) {
+        // Atualizar produto existente
+        await updateProduct(editingProduct.id, {
+          name: formData.name,
+          description: formData.description,
+          category_id: formData.category_id,
+          price: formData.price,
+          production_cost: formData.production_cost,
+        });
+
+        // Deletar insumos antigos
+        await deleteProductIngredientsByProductId(editingProduct.id);
+        productId = editingProduct.id;
+      } else {
+        // Criar novo produto
+        const newProduct = await addProduct({
+          name: formData.name,
+          description: formData.description,
+          category_id: formData.category_id,
+          price: formData.price,
+          production_cost: formData.production_cost,
+        });
+        productId = newProduct.id;
+      }
+
+      // Salvar insumos do produto
+      if (formData.ingredients && formData.ingredients.length > 0) {
+        for (const ingredient of formData.ingredients) {
+          await addProductIngredient({
+            product_id: productId,
+            ingredient_id: ingredient.ingredient_id,
+            ingredient_name: ingredient.ingredient_name,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit,
+            cost: ingredient.cost,
+            is_processed: ingredient.is_processed,
+          });
+        }
+      }
+
+      toast.success(editingProduct ? 'Produto atualizado com sucesso' : 'Produto adicionado com sucesso');
       setShowModal(false);
       loadData();
     } catch (error) {
@@ -488,8 +537,8 @@ export default function Inventory() {
                 {/* Lista de Insumos */}
                 {(formData.ingredients || []).length > 0 ? (
                   <div className="space-y-2">
-                    {formData.ingredients?.map(ing => (
-                      <div key={ing.id} className="flex items-center justify-between p-2 bg-muted rounded">
+                    {formData.ingredients?.map((ing, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
                         <div className="flex-1">
                           <p className="text-sm font-medium text-foreground">
                             {ing.ingredient_name} {ing.is_processed && '⭐'}
@@ -499,7 +548,7 @@ export default function Inventory() {
                           </p>
                         </div>
                         <button
-                          onClick={() => handleRemoveIngredient(ing.id)}
+                          onClick={() => handleRemoveIngredient(index)}
                           className="p-1 hover:bg-destructive/10 rounded text-destructive"
                         >
                           <X className="w-4 h-4" />
@@ -554,10 +603,29 @@ export default function Inventory() {
               <div>
                 <h3 className="font-semibold text-foreground mb-2">Informações do Produto</h3>
                 <p className="text-foreground"><strong>Nome:</strong> {selectedProduct.name}</p>
+                <p className="text-foreground"><strong>Descrição:</strong> {selectedProduct.description || 'Sem descrição'}</p>
                 <p className="text-foreground"><strong>Preço:</strong> R$ {selectedProduct.price.toFixed(2)}</p>
                 <p className="text-foreground"><strong>Custo:</strong> R$ {selectedProduct.production_cost.toFixed(2)}</p>
                 <p className="text-foreground"><strong>Margem:</strong> {(((selectedProduct.price - selectedProduct.production_cost) / selectedProduct.price) * 100).toFixed(1)}%</p>
               </div>
+
+              {selectedProduct.ingredients && selectedProduct.ingredients.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-foreground mb-2">Insumos Utilizados</h3>
+                  <div className="space-y-2">
+                    {selectedProduct.ingredients.map((ing, index) => (
+                      <div key={index} className="p-2 bg-muted rounded">
+                        <p className="text-sm font-medium text-foreground">
+                          {ing.ingredient_name} {ing.is_processed && '⭐'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {ing.quantity} {ing.unit} × R$ {((ing.cost / ing.quantity) || 0).toFixed(2)} = R$ {ing.cost.toFixed(2)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
         </div>

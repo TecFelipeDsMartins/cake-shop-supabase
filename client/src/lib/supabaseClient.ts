@@ -64,6 +64,32 @@ export async function getProducts() {
   return data || [];
 }
 
+export async function getProductsWithIngredients() {
+  const { data: products, error: productsError } = await supabase.from('products').select('*');
+  if (productsError) {
+    console.error('Error fetching products:', productsError);
+    return [];
+  }
+
+  // Carregar insumos para cada produto
+  const productsWithIngredients = await Promise.all(
+    (products || []).map(async (product) => {
+      const { data: ingredients, error: ingredientsError } = await supabase
+        .from('product_ingredients')
+        .select('*')
+        .eq('product_id', product.id);
+      
+      if (ingredientsError) console.error('Error fetching product ingredients:', ingredientsError);
+      return {
+        ...product,
+        ingredients: ingredients || [],
+      };
+    })
+  );
+
+  return productsWithIngredients;
+}
+
 export async function addProduct(product: any) {
   const { data, error } = await supabase.from('products').insert([product]).select();
   if (error) console.error('Error adding product:', error);
@@ -77,8 +103,30 @@ export async function updateProduct(id: number, product: any) {
 }
 
 export async function deleteProduct(id: number) {
+  // Deletar insumos do produto primeiro
+  const { error: ingredientsError } = await supabase.from('product_ingredients').delete().eq('product_id', id);
+  if (ingredientsError) console.error('Error deleting product ingredients:', ingredientsError);
+  
+  // Depois deletar o produto
   const { error } = await supabase.from('products').delete().eq('id', id);
   if (error) console.error('Error deleting product:', error);
+}
+
+// Product Ingredients
+export async function addProductIngredient(ingredient: any) {
+  const { data, error } = await supabase.from('product_ingredients').insert([ingredient]).select();
+  if (error) console.error('Error adding product ingredient:', error);
+  return data?.[0];
+}
+
+export async function deleteProductIngredient(id: number) {
+  const { error } = await supabase.from('product_ingredients').delete().eq('id', id);
+  if (error) console.error('Error deleting product ingredient:', error);
+}
+
+export async function deleteProductIngredientsByProductId(productId: number) {
+  const { error } = await supabase.from('product_ingredients').delete().eq('product_id', productId);
+  if (error) console.error('Error deleting product ingredients:', error);
 }
 
 // Sales
