@@ -1,32 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Eye, Edit2, Trash2, Package, Zap, Cake } from 'lucide-react';
-import { Recipe, IngredientType } from '@/lib/types';
+import { Plus, Edit2, Trash2, Package, Zap, Cake, RefreshCw } from 'lucide-react';
+import { Recipe } from '@/lib/types';
 import RecipeEditorModal from '@/components/RecipeEditorModal';
-import RecipeHierarchyView from '@/components/RecipeHierarchyView';
-import { getRecipes, addRecipe, updateRecipe, deleteRecipe, getIngredients } from '@/lib/supabaseClient';
+import { getRecipes, saveFullRecipe, deleteIngredient, getIngredients } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
-
-interface Ingredient {
-  id?: number;
-  name: string;
-  category?: string;
-  unit?: string;
-  cost: number;
-  minimum_stock?: number;
-  current_stock?: number;
-  is_processed?: boolean;
-  created_at?: string;
-}
 
 export default function Recipes() {
   const [showModal, setShowModal] = useState(false);
-  const [showHierarchy, setShowHierarchy] = useState<number | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [editingRecipe, setEditingRecipe] = useState<any>(null);
+  const [recipes, setRecipes] = useState<any[]>([]);
+  const [ingredients, setIngredients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,254 +25,102 @@ export default function Recipes() {
         getRecipes(),
         getIngredients()
       ]);
-      
-      if (recipesData && recipesData.length > 0) {
-        setRecipes(recipesData);
-      }
-      
-      if (ingredientsData) {
-        setIngredients(ingredientsData);
-      }
+      setRecipes(recipesData || []);
+      setIngredients(ingredientsData || []);
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      toast.error('Erro ao carregar dados do banco de dados');
+      toast.error('Erro ao carregar dados');
     }
     setLoading(false);
   }
 
-  const handleOpenModal = (recipe?: Recipe) => {
-    if (recipe) {
-      setEditingId(recipe.id);
-    } else {
-      setEditingId(null);
-    }
-    setShowModal(true);
-  };
-
-  const handleSave = async (recipe: Recipe) => {
+  const handleSave = async (recipe: any) => {
     try {
-      if (editingId) {
-        await updateRecipe(editingId, recipe);
-        toast.success('Receita atualizada com sucesso');
-      } else {
-        await addRecipe(recipe);
-        toast.success('Receita adicionada com sucesso');
-      }
+      await saveFullRecipe(recipe);
+      toast.success('Receita salva com sucesso');
       setShowModal(false);
       loadData();
     } catch (error) {
-      console.error('Erro ao salvar receita:', error);
-      toast.error('Erro ao salvar receita no banco de dados');
+      toast.error('Erro ao salvar receita');
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (confirm('Tem certeza que deseja deletar esta receita?')) {
+    if (confirm('Tem certeza? Isso removerá a receita permanentemente.')) {
       try {
-        await deleteRecipe(id);
-        toast.success('Receita deletada com sucesso');
+        await deleteIngredient(id);
+        toast.success('Receita removida');
         loadData();
       } catch (error) {
-        console.error('Erro ao deletar receita:', error);
-        toast.error('Erro ao deletar receita');
+        toast.error('Erro ao remover receita');
       }
     }
   };
-
-  const getIcon = (type: IngredientType) => {
-    if (type === 'base') return <Package size={18} className="text-blue-600" />;
-    if (type === 'processed') return <Zap size={18} className="text-amber-600" />;
-    return <Cake size={18} className="text-rose-600" />;
-  };
-
-  const getTypeLabel = (type: IngredientType) => {
-    if (type === 'base') return 'Insumo Base';
-    if (type === 'processed') return 'Insumo Processado';
-    return 'Produto Final';
-  };
-
-  const groupedRecipes = {
-    base: recipes.filter(r => r.type === 'base'),
-    processed: recipes.filter(r => r.type === 'processed'),
-    final: recipes.filter(r => r.type === 'final'),
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Carregando receitas...</p>
-      </div>
-    );
-  }
-
-  if (showHierarchy !== null) {
-    const recipe = recipes.find(r => r.id === showHierarchy);
-    if (recipe) {
-      return (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold text-foreground mb-2">{recipe.name}</h1>
-              <p className="text-muted-foreground">{recipe.description}</p>
-            </div>
-            <Button variant="outline" onClick={() => setShowHierarchy(null)}>
-              Voltar
-            </Button>
-          </div>
-
-          <RecipeHierarchyView
-            recipe={recipe}
-            allRecipes={recipes}
-            onEdit={(r) => {
-              setEditingId(r.id);
-              setShowModal(true);
-            }}
-            expandedIds={expandedIds}
-            onToggleExpand={(id) => {
-              const newExpanded = new Set(expandedIds);
-              if (newExpanded.has(id)) {
-                newExpanded.delete(id);
-              } else {
-                newExpanded.add(id);
-              }
-              setExpandedIds(newExpanded);
-            }}
-          />
-        </div>
-      );
-    }
-  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">Receitas e Composições</h1>
-          <p className="text-muted-foreground">
-            Gerencie insumos base, preparos e produtos finais com suas fichas técnicas
-          </p>
+          <h1 className="text-4xl font-black text-foreground">Receitas e Preparos</h1>
+          <p className="text-muted-foreground">Crie bases e produtos finais com custos automáticos</p>
         </div>
-        <Button
-          className="flex items-center gap-2 bg-accent hover:bg-accent/90"
-          onClick={() => handleOpenModal()}
-        >
-          <Plus size={18} />
-          Nova Receita
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={loadData} disabled={loading}>
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          </Button>
+          <Button onClick={() => { setEditingRecipe(null); setShowModal(true); }} className="bg-accent hover:bg-accent/90 gap-2">
+            <Plus size={18} /> Nova Receita
+          </Button>
+        </div>
       </div>
 
-      {Object.entries(groupedRecipes).map(([type, typeRecipes]) => (
-        <div key={type}>
-          <h2 className="text-2xl font-bold text-foreground mb-4">
-            {type === 'base'
-              ? '📦 Insumos Base'
-              : type === 'processed'
-                ? '⚙️ Insumos Processados'
-                : '🎂 Produtos Finais'}
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {typeRecipes.map((recipe) => (
-              <Card key={recipe.id} className="p-4 hover:shadow-lg transition-shadow">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    {getIcon(recipe.type)}
-                    <div>
-                      <h3 className="font-semibold text-foreground">{recipe.name}</h3>
-                      <p className="text-xs text-muted-foreground">{getTypeLabel(recipe.type)}</p>
-                    </div>
-                  </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {recipes.map((recipe) => (
+          <Card key={recipe.id} className="p-5 hover:shadow-xl transition-all border-accent/10">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-accent/10 rounded-lg text-accent">
+                  <Cake size={24} />
                 </div>
-
-                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                  {recipe.description}
-                </p>
-
-                <div className="grid grid-cols-2 gap-2 mb-4 p-3 bg-muted/30 rounded">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Custo/un</p>
-                    <p className="font-bold text-accent">R$ {recipe.costPerUnit.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Rendimento</p>
-                    <p className="font-bold text-foreground">
-                      {recipe.yield}
-                      {recipe.yieldUnit}
-                    </p>
-                  </div>
+                <div>
+                  <h3 className="font-bold text-lg">{recipe.name}</h3>
+                  <p className="text-[10px] uppercase font-black text-muted-foreground">Rendimento: {recipe.yield} {recipe.unit}</p>
                 </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-black text-accent">R$ {recipe.cost.toFixed(2)}</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold">Custo Unitário</p>
+              </div>
+            </div>
 
-                {recipe.ingredients.length > 0 && (
-                  <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
-                    <p className="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-2">
-                      {recipe.ingredients.length} ingrediente(s)
-                    </p>
-                    <ul className="text-xs text-blue-800 dark:text-blue-300 space-y-1">
-                      {recipe.ingredients.slice(0, 3).map((ing) => (
-                        <li key={ing.id}>
-                          • {ing.ingredientName} ({ing.quantity}
-                          {ing.unit})
-                        </li>
-                      ))}
-                      {recipe.ingredients.length > 3 && (
-                        <li>• +{recipe.ingredients.length - 3} mais...</li>
-                      )}
-                    </ul>
-                  </div>
-                )}
+            <div className="space-y-1 mb-6">
+              <p className="text-xs font-bold text-muted-foreground uppercase">Ingredientes ({recipe.ingredients?.length || 0})</p>
+              <div className="flex flex-wrap gap-1">
+                {recipe.ingredients?.slice(0, 3).map((ing: any, i: number) => (
+                  <span key={i} className="text-[10px] bg-muted px-2 py-0.5 rounded border">{ing.ingredientName}</span>
+                ))}
+                {recipe.ingredients?.length > 3 && <span className="text-[10px] text-muted-foreground">+{recipe.ingredients.length - 3}</span>}
+              </div>
+            </div>
 
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-1 text-blue-600 hover:text-blue-700"
-                    onClick={() => setShowHierarchy(recipe.id)}
-                  >
-                    <Eye size={16} className="mr-1" />
-                    Ver Ficha
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-accent hover:text-accent/80"
-                    onClick={() => {
-                      setEditingId(recipe.id);
-                      setShowModal(true);
-                    }}
-                  >
-                    <Edit2 size={16} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-600 hover:text-red-700"
-                    onClick={() => handleDelete(recipe.id)}
-                  >
-                    <Trash2 size={16} />
-                  </Button>
-                </div>
-              </Card>
-            ))}
-
-            {typeRecipes.length === 0 && (
-              <Card className="p-8 col-span-full flex items-center justify-center text-center">
-                <p className="text-muted-foreground">Nenhuma receita neste tipo</p>
-              </Card>
-            )}
-          </div>
-        </div>
-      ))}
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => { setEditingRecipe(recipe); setShowModal(true); }}>
+                <Edit2 size={14} className="mr-1" /> Editar
+              </Button>
+              <Button variant="outline" size="sm" className="text-red-500" onClick={() => handleDelete(recipe.id)}>
+                <Trash2 size={14} />
+              </Button>
+            </div>
+          </Card>
+        ))}
+      </div>
 
       {showModal && (
         <RecipeEditorModal
-          recipe={editingId ? recipes.find(r => r.id === editingId) : undefined}
+          recipe={editingRecipe}
           allRecipes={recipes}
-          ingredients={ingredients}
+          ingredients={ingredients.filter(i => !i.is_processed)}
           onSave={handleSave}
-          onClose={() => {
-            setShowModal(false);
-            setEditingId(null);
-          }}
+          onClose={() => setShowModal(false)}
         />
       )}
     </div>
