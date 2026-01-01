@@ -1,276 +1,235 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Trash2, Star } from 'lucide-react';
-
-interface Account {
-  id: number;
-  name: string;
-  type: string;
-  balance: number;
-  isDefault: boolean;
-  description?: string;
-}
+import { Plus, Edit2, Trash2, Wallet, RefreshCw } from 'lucide-react';
+import { getAccounts, addAccount, updateAccount, deleteAccount } from '@/lib/supabaseClient';
+import { toast } from 'sonner';
 
 export default function Accounts() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-
-  const [accounts, setAccounts] = useState<Account[]>([
-    { id: 1, name: 'Conta Corrente', type: 'Corrente', balance: 5000.00, isDefault: true, description: 'Conta principal para operações' },
-    { id: 2, name: 'Poupança', type: 'Poupança', balance: 2500.00, isDefault: false, description: 'Reserva de emergência' },
-    { id: 3, name: 'Caixa', type: 'Caixa', balance: 500.00, isDefault: false, description: 'Dinheiro em espécie' },
-  ]);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     name: '',
-    type: '',
+    account_type: 'Corrente',
     balance: 0,
-    description: '',
+    is_default: false
   });
 
-  const accountTypes = ['Corrente', 'Poupança', 'Caixa', 'Investimento', 'Crédito', 'Outro'];
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const handleOpenModal = (account?: Account) => {
+  async function loadData() {
+    setLoading(true);
+    try {
+      const data = await getAccounts();
+      setAccounts(data || []);
+    } catch (error) {
+      toast.error('Erro ao carregar contas');
+    }
+    setLoading(false);
+  }
+
+  const handleOpenModal = (account?: any) => {
     if (account) {
       setEditingId(account.id);
       setFormData({
         name: account.name,
-        type: account.type,
-        balance: account.balance,
-        description: account.description || '',
+        account_type: account.account_type || 'Corrente',
+        balance: account.balance || 0,
+        is_default: account.is_default || false
       });
     } else {
       setEditingId(null);
       setFormData({
         name: '',
-        type: '',
+        account_type: 'Corrente',
         balance: 0,
-        description: '',
+        is_default: false
       });
     }
     setShowModal(true);
   };
 
-  const handleSave = () => {
-    if (!formData.name || !formData.type) {
-      alert('Preencha todos os campos obrigatórios');
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      toast.error('Nome da conta é obrigatório');
       return;
     }
 
-    if (editingId) {
-      setAccounts(accounts.map(acc =>
-        acc.id === editingId
-          ? { ...acc, ...formData }
-          : acc
-      ));
-    } else {
-      const newAccount: Account = {
-        id: Math.max(...accounts.map(a => a.id), 0) + 1,
-        ...formData,
-        isDefault: accounts.length === 0,
-      };
-      setAccounts([...accounts, newAccount]);
+    try {
+      if (editingId) {
+        await updateAccount(editingId, formData);
+        toast.success('Conta atualizada com sucesso');
+      } else {
+        await addAccount(formData);
+        toast.success('Conta adicionada com sucesso');
+      }
+      setShowModal(false);
+      loadData();
+    } catch (error) {
+      toast.error('Erro ao salvar conta');
     }
-
-    setShowModal(false);
   };
 
-  const handleDelete = (id: number) => {
-    if (accounts.find(a => a.id === id)?.isDefault) {
-      alert('Não é possível deletar a conta padrão. Defina outra conta como padrão primeiro.');
-      return;
-    }
-
+  const handleDelete = async (id: number) => {
     if (confirm('Tem certeza que deseja deletar esta conta?')) {
-      setAccounts(accounts.filter(a => a.id !== id));
+      try {
+        await deleteAccount(id);
+        toast.success('Conta deletada com sucesso');
+        loadData();
+      } catch (error) {
+        toast.error('Erro ao deletar conta');
+      }
     }
   };
 
-  const handleSetDefault = (id: number) => {
-    setAccounts(accounts.map(acc => ({
-      ...acc,
-      isDefault: acc.id === id,
-    })));
-  };
+  const totalBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
 
-  const defaultAccount = accounts.find(a => a.isDefault);
-  const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Carregando contas...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Contas</h1>
-          <p className="text-muted-foreground mt-1">Gerenciar contas bancárias e de caixa</p>
+        <h1 className="text-3xl font-bold">Contas Bancárias</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={loadData}>
+            <RefreshCw size={18} />
+          </Button>
+          <Button onClick={() => handleOpenModal()} className="bg-accent text-white">
+            <Plus size={18} className="mr-2" /> Nova Conta
+          </Button>
         </div>
-        <Button
-          className="bg-accent hover:bg-accent/90"
-          onClick={() => handleOpenModal()}
-        >
-          <Plus size={20} className="mr-2" />
-          Nova Conta
-        </Button>
       </div>
 
-      {/* Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6">
-          <p className="text-sm text-muted-foreground mb-1">Saldo Total</p>
-          <p className="text-2xl font-bold text-foreground">R$ {totalBalance.toFixed(2)}</p>
-          <p className="text-xs text-muted-foreground mt-2">{accounts.length} contas</p>
-        </Card>
-
-        {defaultAccount && (
-          <Card className="p-6 bg-accent/10">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Conta Padrão</p>
-                <p className="text-lg font-bold text-foreground">{defaultAccount.name}</p>
-                <p className="text-sm text-accent font-semibold mt-1">R$ {defaultAccount.balance.toFixed(2)}</p>
-              </div>
-              <Star size={32} className="text-accent fill-accent" />
-            </div>
-          </Card>
-        )}
-
-        <Card className="p-6">
-          <p className="text-sm text-muted-foreground mb-1">Informação</p>
-          <p className="text-foreground font-medium">A conta padrão recebe automaticamente as vendas</p>
-          <p className="text-xs text-muted-foreground mt-3">Clique na estrela para definir como padrão</p>
-        </Card>
-      </div>
-
-      {/* Lista de Contas */}
-      <Card className="p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Minhas Contas</h2>
-        <div className="space-y-3">
-          {accounts.map((account) => (
-            <div key={account.id} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/30 transition-colors">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-foreground">{account.name}</h3>
-                  {account.isDefault && (
-                    <Star size={16} className="text-accent fill-accent" />
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground">{account.type}</p>
-                {account.description && (
-                  <p className="text-xs text-muted-foreground mt-1">{account.description}</p>
-                )}
-              </div>
-
-              <div className="text-right mr-4">
-                <p className="text-xl font-bold text-foreground">R$ {account.balance.toFixed(2)}</p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {!account.isDefault && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-accent"
-                    onClick={() => handleSetDefault(account.id)}
-                    title="Definir como padrão"
-                  >
-                    <Star size={18} />
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-accent hover:text-accent/80"
-                  onClick={() => handleOpenModal(account)}
-                >
-                  <Edit2 size={16} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-600 hover:text-red-700"
-                  onClick={() => handleDelete(account.id)}
-                >
-                  <Trash2 size={16} />
-                </Button>
-              </div>
-            </div>
-          ))}
+      <Card className="p-6 bg-gradient-to-r from-accent/10 to-accent/5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">Saldo Total</p>
+            <p className="text-3xl font-bold text-accent">R$ {(totalBalance / 100).toFixed(2)}</p>
+          </div>
+          <Wallet size={40} className="text-accent/30" />
         </div>
       </Card>
 
-      {/* Modal de Conta */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-foreground mb-6">
-                {editingId ? 'Editar Conta' : 'Nova Conta'}
-              </h2>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Nome da Conta *</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                    placeholder="Ex: Conta Corrente"
-                  />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {accounts.length === 0 ? (
+          <div className="col-span-full text-center py-12">
+            <Wallet className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Nenhuma conta cadastrada</p>
+          </div>
+        ) : (
+          accounts.map(account => (
+            <Card key={account.id} className="p-4 hover:shadow-md transition-shadow">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-semibold text-foreground">{account.name}</h3>
+                    <p className="text-xs text-muted-foreground">{account.account_type}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleOpenModal(account)}
+                      className="p-1 hover:bg-muted rounded"
+                    >
+                      <Edit2 className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                    <button
+                      onClick={() => account.id && handleDelete(account.id)}
+                      className="p-1 hover:bg-destructive/10 rounded"
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Tipo de Conta *</label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                  >
-                    <option value="">Selecione um tipo</option>
-                    {accountTypes.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
+                <div className="border-t border-border pt-3">
+                  <p className="text-sm text-muted-foreground">Saldo</p>
+                  <p className="text-xl font-bold text-accent">R$ {(account.balance / 100).toFixed(2)}</p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Saldo Inicial (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.balance || 0}
-                    onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                    placeholder="0.00"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Descrição</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                    placeholder="Adicione uma descrição (opcional)"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex gap-3 justify-end pt-4 border-t border-border">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowModal(false)}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    className="bg-accent hover:bg-accent/90"
-                    onClick={handleSave}
-                  >
-                    {editingId ? 'Atualizar' : 'Criar'} Conta
-                  </Button>
-                </div>
+                {account.is_default && (
+                  <div className="bg-accent/10 text-accent text-xs font-bold px-2 py-1 rounded w-fit">
+                    Conta Padrão
+                  </div>
+                )}
               </div>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md p-6 space-y-4">
+            <h2 className="text-xl font-bold text-foreground">
+              {editingId ? 'Editar Conta' : 'Nova Conta'}
+            </h2>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-bold">Nome da Conta *</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Conta Corrente"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-bold">Tipo de Conta</label>
+                <select
+                  value={formData.account_type}
+                  onChange={(e) => setFormData({ ...formData, account_type: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                >
+                  <option>Corrente</option>
+                  <option>Poupança</option>
+                  <option>Caixa</option>
+                  <option>Investimento</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-bold">Saldo Inicial (R$)</label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={formData.balance / 100}
+                  onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) * 100 || 0 })}
+                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.is_default}
+                  onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
+                  className="rounded"
+                />
+                <span className="text-sm">Definir como conta padrão</span>
+              </label>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSave}>
+                {editingId ? 'Atualizar' : 'Adicionar'}
+              </Button>
             </div>
           </Card>
         </div>

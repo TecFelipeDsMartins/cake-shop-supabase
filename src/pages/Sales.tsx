@@ -1,450 +1,314 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Trash2, User } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-
-interface Customer {
-  id: number;
-  name: string;
-}
-
-interface Sale {
-  id: number;
-  date: string;
-  customerId?: number;
-  customerName?: string;
-  product: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  paymentMethod: string;
-  status: 'completed' | 'pending' | 'cancelled';
-}
-
-interface SalesData {
-  date: string;
-  sales: number;
-  quantity: number;
-}
+import { Plus, Trash2, RefreshCw } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { getSales, addSale, deleteSale, getCustomers, getProducts, getPaymentMethods, getAccounts, addSaleItem } from '@/lib/supabaseClient';
+import { toast } from 'sonner';
 
 export default function Sales() {
   const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [sales, setSales] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [customers] = useState<Customer[]>([
-    { id: 1, name: 'Maria Silva' },
-    { id: 2, name: 'João Santos' },
-    { id: 3, name: 'Ana Costa' },
-  ]);
-
-  const [sales, setSales] = useState<Sale[]>([
-    { id: 1, date: '2024-12-28', customerId: 1, customerName: 'Maria Silva', product: 'Bolo de Chocolate', quantity: 2, unitPrice: 85.00, totalPrice: 170.00, paymentMethod: 'Dinheiro', status: 'completed' },
-    { id: 2, date: '2024-12-28', customerName: 'Cliente Anônimo', product: 'Cupcakes Variados', quantity: 12, unitPrice: 3.50, totalPrice: 42.00, paymentMethod: 'Cartão', status: 'completed' },
-    { id: 3, date: '2024-12-27', customerId: 2, customerName: 'João Santos', product: 'Croissant', quantity: 10, unitPrice: 5.50, totalPrice: 55.00, paymentMethod: 'Pix', status: 'completed' },
-    { id: 4, date: '2024-12-27', customerName: 'Cliente Anônimo', product: 'Pão de Forma', quantity: 5, unitPrice: 12.00, totalPrice: 60.00, paymentMethod: 'Dinheiro', status: 'completed' },
-    { id: 5, date: '2024-12-26', customerId: 3, customerName: 'Ana Costa', product: 'Bolo de Chocolate', quantity: 1, unitPrice: 85.00, totalPrice: 85.00, paymentMethod: 'Cartão', status: 'completed' },
-  ]);
-
-  const [formData, setFormData] = useState<{
-    customerId?: number;
-    customerName?: string;
-    product: string;
-    quantity: number;
-    unitPrice: number;
-    paymentMethod: string;
-    status: 'completed' | 'pending' | 'cancelled';
-  }>({
-    customerName: 'Cliente Anônimo',
-    product: '',
-    quantity: 1,
-    unitPrice: 0,
-    paymentMethod: 'Dinheiro',
-    status: 'completed',
+  const [formData, setFormData] = useState<any>({
+    customer_id: null,
+    payment_method_id: null,
+    account_id: null,
+    notes: '',
+    items: []
   });
 
-  const paymentMethods = ['Dinheiro', 'Cartão', 'Pix', 'Cheque'];
-  const productPrices: Record<string, number> = {
-    'Bolo de Chocolate': 85.00,
-    'Cupcakes Variados': 3.50,
-    'Pão de Forma': 12.00,
-    'Croissant': 5.50,
-  };
-  const products = Object.keys(productPrices);
+  const [newItem, setNewItem] = useState({
+    product_id: '',
+    quantity: 1,
+    unit_price: 0
+  });
 
-  const handleOpenModal = (sale?: Sale) => {
-    if (sale) {
-      setEditingId(sale.id);
-      setFormData({
-        customerId: sale.customerId,
-        customerName: sale.customerName,
-        product: sale.product,
-        quantity: sale.quantity,
-        unitPrice: sale.unitPrice,
-        paymentMethod: sale.paymentMethod,
-        status: sale.status,
-      });
-    } else {
-      setEditingId(null);
-      setFormData({
-        customerName: 'Cliente Anônimo',
-        product: '',
-        quantity: 1,
-        unitPrice: 0,
-        paymentMethod: 'Dinheiro',
-        status: 'completed' as const,
-      });
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [salesData, customersData, productsData, pmData, accountsData] = await Promise.all([
+        getSales(),
+        getCustomers(),
+        getProducts(),
+        getPaymentMethods(),
+        getAccounts()
+      ]);
+      setSales(salesData || []);
+      setCustomers(customersData || []);
+      setProducts(productsData || []);
+      setPaymentMethods(pmData || []);
+      setAccounts(accountsData || []);
+      
+      if (accountsData && accountsData.length > 0) {
+        const defaultAcc = accountsData.find((a: any) => a.is_default) || accountsData[0];
+        setFormData((prev: any) => ({ ...prev, account_id: defaultAcc.id }));
+      }
+    } catch (error) {
+      toast.error('Erro ao carregar dados');
     }
-    setShowModal(true);
-  };
+    setLoading(false);
+  }
 
-  const handleSave = () => {
-    if (!formData.product || formData.quantity <= 0 || formData.unitPrice <= 0) {
-      alert('Preencha todos os campos corretamente');
+  const handleAddItem = () => {
+    if (!newItem.product_id || newItem.quantity <= 0) {
+      toast.error('Selecione um produto e quantidade válida');
       return;
     }
-
-    const totalPrice = formData.quantity * formData.unitPrice;
-    const today = new Date().toISOString().split('T')[0];
-
-    if (editingId) {
-      setSales(sales.map(sale =>
-        sale.id === editingId
-          ? { ...sale, ...formData, totalPrice }
-          : sale
-      ));
-    } else {
-      const newSale: Sale = {
-        id: Math.max(...sales.map(s => s.id), 0) + 1,
-        date: today,
-        customerId: formData.customerId,
-        customerName: formData.customerName,
-        ...formData,
-        totalPrice,
-      };
-      setSales([newSale, ...sales]);
+    const product = products.find(p => p.id === parseInt(newItem.product_id));
+    if (!product) {
+      toast.error('Produto não encontrado');
+      return;
     }
-
-    setShowModal(false);
+    const item = {
+      ...newItem,
+      product_name: product.name,
+      subtotal: newItem.quantity * newItem.unit_price
+    };
+    setFormData({ ...formData, items: [...formData.items, item] });
+    setNewItem({ product_id: '', quantity: 1, unit_price: 0 });
   };
 
-  const handleDelete = (id: number) => {
+  const handleRemoveItem = (index: number) => {
+    setFormData({
+      ...formData,
+      items: formData.items.filter((_: any, i: number) => i !== index)
+    });
+  };
+
+  const handleSave = async () => {
+    if (formData.items.length === 0) {
+      toast.error('Adicione pelo menos um item');
+      return;
+    }
+    
+    const total_amount = formData.items.reduce((sum: number, item: any) => sum + item.subtotal, 0);
+    const salePayload = {
+      customer_id: formData.customer_id || null,
+      payment_method_id: formData.payment_method_id || null,
+      account_id: formData.account_id || null,
+      total_amount,
+      notes: formData.notes
+    };
+
+    try {
+      const newSale = await addSale(salePayload);
+      
+      if (newSale && newSale.id) {
+        // Adicionar itens da venda
+        for (const item of formData.items) {
+          await addSaleItem({
+            sale_id: newSale.id,
+            product_id: parseInt(item.product_id),
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.subtotal
+          });
+        }
+      }
+      
+      toast.success('Venda registrada com sucesso');
+      setShowModal(false);
+      setFormData({ customer_id: null, payment_method_id: null, account_id: null, notes: '', items: [] });
+      loadData();
+    } catch (error) {
+      console.error('Erro ao salvar venda:', error);
+      toast.error('Erro ao salvar venda');
+    }
+  };
+
+  const handleDelete = async (id: number) => {
     if (confirm('Tem certeza que deseja deletar esta venda?')) {
-      setSales(sales.filter(s => s.id !== id));
+      try {
+        await deleteSale(id);
+        toast.success('Venda deletada com sucesso');
+        loadData();
+      } catch (error) {
+        toast.error('Erro ao deletar venda');
+      }
     }
   };
 
-  // Cálculos
-  const totalSales = sales.reduce((sum, sale) => sum + sale.totalPrice, 0);
-  const totalQuantity = sales.reduce((sum, sale) => sum + sale.quantity, 0);
-  const averageTicket = sales.length > 0 ? totalSales / sales.length : 0;
-  const completedSales = sales.filter(s => s.status === 'completed').length;
-
-  // Dados para gráficos
-  const salesByDate = sales.reduce((acc, sale) => {
-    const existing = acc.find(item => item.date === sale.date);
-    if (existing) {
-      existing.sales += sale.totalPrice;
-      existing.quantity += sale.quantity;
-    } else {
-      acc.push({ date: sale.date, sales: sale.totalPrice, quantity: sale.quantity });
-    }
+  // Cálculos para gráficos
+  const totalRevenue = sales.reduce((sum, s) => sum + (s.total_amount || 0), 0);
+  const salesByDate = sales.reduce((acc: any[], s) => {
+    const date = new Date(s.sale_date).toLocaleDateString('pt-BR');
+    const existing = acc.find(a => a.date === date);
+    if (existing) existing.amount += s.total_amount || 0;
+    else acc.push({ date, amount: s.total_amount || 0 });
     return acc;
-  }, [] as SalesData[]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, []).reverse();
 
-  const salesByProduct = sales.reduce((acc, sale) => {
-    const existing = acc.find(item => item.name === sale.product);
-    if (existing) {
-      existing.value += sale.totalPrice;
-    } else {
-      acc.push({ name: sale.product, value: sale.totalPrice });
-    }
-    return acc;
-  }, [] as Array<{ name: string; value: number }>);
-
-  const COLORS = ['#D4A574', '#8B6F47', '#C19A6B', '#A0826D'];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Carregando vendas...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">Gestão de Vendas</h1>
-          <p className="text-muted-foreground">Histórico e análise de transações</p>
+        <h1 className="text-3xl font-bold">Vendas</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={loadData}>
+            <RefreshCw size={18} />
+          </Button>
+          <Button onClick={() => setShowModal(true)} className="bg-accent text-white">
+            <Plus size={18} className="mr-2" /> Nova Venda
+          </Button>
         </div>
-        <Button
-          className="flex items-center gap-2 bg-accent hover:bg-accent/90"
-          onClick={() => handleOpenModal()}
-        >
-          <Plus size={18} />
-          Nova Venda
-        </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Total de Vendas</p>
-          <p className="text-2xl font-bold text-accent">R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-sm text-muted-foreground">Receita Total</p>
+          <p className="text-2xl font-bold text-accent">R$ {(totalRevenue / 100).toFixed(2)}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Quantidade Vendida</p>
-          <p className="text-2xl font-bold text-foreground">{totalQuantity} un.</p>
+          <p className="text-sm text-muted-foreground">Total de Vendas</p>
+          <p className="text-2xl font-bold">{sales.length}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Ticket Médio</p>
-          <p className="text-2xl font-bold text-accent">R$ {averageTicket.toFixed(2)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Vendas Concluídas</p>
-          <p className="text-2xl font-bold text-green-600">{completedSales}</p>
+          <p className="text-sm text-muted-foreground">Ticket Médio</p>
+          <p className="text-2xl font-bold">R$ {sales.length > 0 ? ((totalRevenue / sales.length) / 100).toFixed(2) : '0.00'}</p>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Vendas por Dia</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={salesByDate}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" stroke="var(--muted-foreground)" />
-              <YAxis stroke="var(--muted-foreground)" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--card)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                }}
-              />
-              <Legend />
-              <Line type="monotone" dataKey="sales" stroke="var(--accent)" strokeWidth={2} name="Vendas (R$)" />
-            </LineChart>
-          </ResponsiveContainer>
+          <h2 className="text-lg font-semibold mb-4">Vendas por Dia</h2>
+          {salesByDate.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={salesByDate}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Line type="monotone" dataKey="amount" stroke="#D4A574" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-muted-foreground text-center py-8">Nenhuma venda registrada</p>
+          )}
         </Card>
 
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Vendas por Produto</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={salesByProduct}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, value }) => `${name}: R$ ${value.toFixed(0)}`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {salesByProduct.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--card)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+          <h2 className="text-lg font-semibold mb-4">Histórico Recente</h2>
+          <div className="space-y-3">
+            {sales.slice(0, 5).map(sale => (
+              <div key={sale.id} className="flex justify-between items-center p-3 border rounded hover:bg-muted/30">
+                <div>
+                  <p className="font-bold">{sale.customer?.name || 'Cliente Avulso'}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(sale.sale_date).toLocaleString('pt-BR')}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-accent">R$ {(sale.total_amount / 100).toFixed(2)}</p>
+                  <button 
+                    onClick={() => handleDelete(sale.id)} 
+                    className="text-red-500 text-xs hover:underline"
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
       </div>
 
-      <Card className="p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Histórico de Vendas</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Data</th>
-                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Cliente</th>
-                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Produto</th>
-                <th className="text-center py-3 px-4 font-semibold text-muted-foreground text-sm">Qtd</th>
-                <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Preço Unit.</th>
-                <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Total</th>
-                <th className="text-center py-3 px-4 font-semibold text-muted-foreground text-sm">Pagamento</th>
-                <th className="text-center py-3 px-4 font-semibold text-muted-foreground text-sm">Status</th>
-                <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Ações</th>
-              </tr>
-            </thead>
-              <tbody>
-                {sales.map((sale) => (
-                  <tr key={sale.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                    <td className="py-3 px-4 text-foreground text-sm">{new Date(sale.date).toLocaleDateString('pt-BR')}</td>
-                    <td className="py-3 px-4 text-foreground text-sm">{sale.customerName || 'Cliente Anônimo'}</td>
-                    <td className="py-3 px-4 text-foreground font-medium">{sale.product}</td>
-                  <td className="text-center py-3 px-4 text-foreground">{sale.quantity}</td>
-                  <td className="text-right py-3 px-4 text-foreground">R$ {sale.unitPrice.toFixed(2)}</td>
-                  <td className="text-right py-3 px-4 font-semibold text-accent">R$ {sale.totalPrice.toFixed(2)}</td>
-                  <td className="text-center py-3 px-4 text-sm text-muted-foreground">{sale.paymentMethod}</td>
-                  <td className="text-center py-3 px-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      sale.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200' :
-                      sale.status === 'pending' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200' :
-                      'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
-                    }`}>
-                      {sale.status === 'completed' ? 'Concluída' : sale.status === 'pending' ? 'Pendente' : 'Cancelada'}
-                    </span>
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-accent hover:text-accent/80"
-                        onClick={() => handleOpenModal(sale)}
-                      >
-                        <Edit2 size={16} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700"
-                        onClick={() => handleDelete(sale.id)}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
+      {/* Modal de Nova Venda */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-foreground mb-6">
-                {editingId ? 'Editar Venda' : 'Nova Venda'}
-              </h2>
-
-              <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-2xl p-6 bg-background max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-6">Nova Venda</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Cliente</label>
-                  <div className="flex gap-2">
-                    <select
-                      value={formData.customerId || ''}
-                      onChange={(e) => {
-                        const selectedId = e.target.value;
-                        if (selectedId === 'anonymous') {
-                          setFormData({ ...formData, customerId: undefined, customerName: 'Cliente Anônimo' });
-                        } else if (selectedId) {
-                          const customer = customers.find(c => c.id === parseInt(selectedId));
-                          setFormData({ ...formData, customerId: parseInt(selectedId), customerName: customer?.name });
-                        }
-                      }}
-                      className="flex-1 px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                    >
-                      <option value="anonymous">Cliente Anônimo</option>
-                      {customers.map(customer => (
-                        <option key={customer.id} value={customer.id}>{customer.name}</option>
-                      ))}
-                    </select>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-accent"
-                      title="Adicionar novo cliente"
-                    >
-                      <Plus size={16} />
-                    </Button>
-                  </div>
+                  <label className="text-sm font-bold">Cliente</label>
+                  <select 
+                    className="w-full p-2 border border-border rounded bg-background text-foreground"
+                    value={formData.customer_id || ''} 
+                    onChange={e => setFormData({...formData, customer_id: e.target.value ? parseInt(e.target.value) : null})}
+                  >
+                    <option value="">Cliente Avulso</option>
+                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Produto *</label>
-                  <select
-                    value={formData.product}
-                    onChange={(e) => {
-                      const selectedProduct = e.target.value;
-                      setFormData({
-                        ...formData,
-                        product: selectedProduct,
-                        unitPrice: productPrices[selectedProduct] || 0,
-                      });
+                  <label className="text-sm font-bold">Conta de Destino</label>
+                  <select 
+                    className="w-full p-2 border border-border rounded bg-background text-foreground"
+                    value={formData.account_id || ''} 
+                    onChange={e => setFormData({...formData, account_id: e.target.value ? parseInt(e.target.value) : null})}
+                  >
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="border p-4 rounded bg-muted/20">
+                <p className="font-bold mb-3">Adicionar Itens</p>
+                <div className="grid grid-cols-4 gap-2">
+                  <select 
+                    className="col-span-2 p-2 border border-border rounded bg-background text-foreground"
+                    value={newItem.product_id} 
+                    onChange={e => {
+                      const p = products.find(prod => prod.id === parseInt(e.target.value));
+                      setNewItem({...newItem, product_id: e.target.value, unit_price: p?.price ? p.price / 100 : 0});
                     }}
-                    className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
                   >
-                    <option value="">Selecione um produto</option>
-                    {products.map(product => (
-                      <option key={product} value={product}>
-                        {product} (R$ {productPrices[product].toFixed(2)})
-                      </option>
-                    ))}
+                    <option value="">Selecione um produto...</option>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                  <input 
+                    type="number" 
+                    className="p-2 border border-border rounded bg-background text-foreground"
+                    placeholder="Qtd" 
+                    value={newItem.quantity} 
+                    onChange={e => setNewItem({...newItem, quantity: parseFloat(e.target.value) || 0})} 
+                  />
+                  <Button onClick={handleAddItem} className="bg-accent text-white">Add</Button>
                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Quantidade *</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
-                      className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  </div>
+              <div className="space-y-2 border-t border-border pt-4">
+                <h3 className="font-bold">Itens da Venda:</h3>
+                {formData.items.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">Nenhum item adicionado</p>
+                ) : (
+                  formData.items.map((item: any, idx: number) => (
+                    <div key={idx} className="flex justify-between items-center p-2 border-b">
+                      <span>{item.product_name} (x{item.quantity})</span>
+                      <div className="flex gap-2">
+                        <span className="font-bold">R$ {item.subtotal.toFixed(2)}</span>
+                        <button 
+                          onClick={() => handleRemoveItem(idx)}
+                          className="text-red-500 text-xs hover:underline"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Preço Unit. (R$) *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.unitPrice || 0}
-                      onChange={(e) => setFormData({ ...formData, unitPrice: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                      placeholder="Preço será preenchido automaticamente"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Método de Pagamento</label>
-                  <select
-                    value={formData.paymentMethod}
-                    onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                    className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                  >
-                    {paymentMethods.map(method => (
-                      <option key={method} value={method}>{method}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                  >
-                    <option value="completed">Concluída</option>
-                    <option value="pending">Pendente</option>
-                    <option value="cancelled">Cancelada</option>
-                  </select>
-                </div>
-
-                <div className="bg-accent/10 p-3 rounded-lg">
-                  <p className="text-sm text-muted-foreground">Total: <span className="font-bold text-accent">R$ {(formData.quantity * formData.unitPrice).toFixed(2)}</span></p>
-                </div>
-
-                <div className="flex gap-3 justify-end pt-4 border-t border-border">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowModal(false)}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    className="bg-accent hover:bg-accent/90"
-                    onClick={handleSave}
-                  >
-                    {editingId ? 'Atualizar' : 'Registrar'} Venda
-                  </Button>
+              <div className="flex justify-between items-center pt-4 border-t">
+                <p className="text-xl font-bold">Total: R$ {formData.items.reduce((s: number, i: any) => s + i.subtotal, 0).toFixed(2)}</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setShowModal(false)}>Cancelar</Button>
+                  <Button onClick={handleSave} className="bg-primary text-white">Finalizar Venda</Button>
                 </div>
               </div>
             </div>

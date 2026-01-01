@@ -1,61 +1,131 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
-import { TrendingUp, Package, ShoppingCart, AlertCircle, Cake } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { TrendingUp, Package, ShoppingCart, AlertCircle, Cake, RefreshCw } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { getSales, getCustomers, getProducts, getIngredients, getDashboardMetrics } from '@/lib/supabaseClient';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 export default function Dashboard() {
-  const [metrics] = useState({
-    totalRevenue: 12500.50,
-    totalSales: 45,
-    lowStockItems: 3,
-    monthlyGrowth: 12.5,
+  const [metrics, setMetrics] = useState({
+    totalRevenue: 0,
+    totalSales: 0,
+    lowStockItems: 0,
+    monthlyGrowth: 0,
+    totalCustomers: 0,
+    totalProducts: 0,
   });
+  const [birthdayCustomers, setBirthdayCustomers] = useState<any[]>([]);
+  const [salesData, setSalesData] = useState<any[]>([]);
+  const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const birthdayCustomers = [
-    { id: 2, name: 'Joao Santos', birthDate: '1985-12-20', age: 39 },
-    { id: 3, name: 'Ana Costa', birthDate: '1992-12-10', age: 32 },
-  ];
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
 
-  const getMonthBirthdayCustomers = () => {
-    const currentMonth = new Date().getMonth() + 1;
-    return birthdayCustomers.filter(customer => {
-      const birthMonth = parseInt(customer.birthDate.split('-')[1]);
-      return birthMonth === currentMonth;
-    });
-  };
+  async function loadDashboardData() {
+    setLoading(true);
+    try {
+      const [dashMetrics, salesList, customersList, productsList, ingredientsList] = await Promise.all([
+        getDashboardMetrics(),
+        getSales(),
+        getCustomers(),
+        getProducts(),
+        getIngredients()
+      ]);
 
-  const monthBirthdayCustomers = getMonthBirthdayCustomers();
+      // Processar métricas
+      setMetrics({
+        totalRevenue: dashMetrics.totalSales || 0,
+        totalSales: dashMetrics.salesCount || 0,
+        lowStockItems: ingredientsList?.filter((i: any) => i.current_stock <= i.minimum_stock).length || 0,
+        monthlyGrowth: 12.5, // Será calculado dinamicamente em versão futura
+        totalCustomers: dashMetrics.totalCustomers || 0,
+        totalProducts: dashMetrics.totalProducts || 0,
+      });
 
-  const salesData = [
-    { date: '01/12', sales: 1200, revenue: 2400 },
-    { date: '02/12', sales: 1500, revenue: 3200 },
-    { date: '03/12', sales: 1100, revenue: 2800 },
-    { date: '04/12', sales: 2000, revenue: 4200 },
-    { date: '05/12', sales: 1800, revenue: 3800 },
-    { date: '06/12', sales: 2200, revenue: 4600 },
-    { date: '07/12', sales: 2500, revenue: 5200 },
-  ];
+      // Processar aniversariantes do mês
+      const currentMonth = new Date().getMonth();
+      const birthdays = customersList?.filter((c: any) => {
+        if (!c.birth_date) return false;
+        const birthMonth = new Date(c.birth_date).getMonth();
+        return birthMonth === currentMonth;
+      }) || [];
+      setBirthdayCustomers(birthdays);
 
-  const topProducts = [
-    { name: 'Bolo de Chocolate', sales: 156, revenue: 3120 },
-    { name: 'Cupcakes Variados', sales: 234, revenue: 2340 },
-    { name: 'Pão de Forma', sales: 189, revenue: 945 },
-    { name: 'Croissant', sales: 145, revenue: 1450 },
-  ];
+      // Processar dados de vendas por dia
+      const salesByDate: { [key: string]: number } = {};
+      salesList?.forEach((sale: any) => {
+        const date = new Date(sale.sale_date).toLocaleDateString('pt-BR');
+        salesByDate[date] = (salesByDate[date] || 0) + (sale.total_amount || 0);
+      });
+
+      const chartData = Object.entries(salesByDate)
+        .map(([date, amount]) => ({
+          date,
+          sales: Math.round(amount / 100), // Converter de centavos
+          revenue: Math.round(amount / 100)
+        }))
+        .slice(-7); // Últimos 7 dias
+
+      setSalesData(chartData);
+
+      // Processar produtos mais vendidos
+      const productSales: { [key: string]: { name: string; sales: number; revenue: number } } = {};
+      salesList?.forEach((sale: any) => {
+        if (sale.items) {
+          sale.items.forEach((item: any) => {
+            const key = item.product_id;
+            if (!productSales[key]) {
+              productSales[key] = { name: item.product?.name || 'Produto', sales: 0, revenue: 0 };
+            }
+            productSales[key].sales += item.quantity || 0;
+            productSales[key].revenue += item.subtotal || 0;
+          });
+        }
+      });
+
+      const topProds = Object.values(productSales)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 4);
+
+      setTopProducts(topProds);
+    } catch (error) {
+      console.error('Erro ao carregar dashboard:', error);
+      toast.error('Erro ao carregar dados do dashboard');
+    }
+    setLoading(false);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Carregando dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold text-foreground mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">Bem-vindo ao seu painel de controle</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold text-foreground mb-2">Dashboard</h1>
+          <p className="text-muted-foreground">Bem-vindo ao seu painel de controle</p>
+        </div>
+        <Button variant="outline" onClick={loadDashboardData}>
+          <RefreshCw size={18} className="mr-2" />
+          Atualizar
+        </Button>
       </div>
 
+      {/* Métricas Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="metric-card">
           <div className="flex items-start justify-between">
             <div>
               <p className="metric-label">Receita Total</p>
-              <p className="metric-value">R$ {metrics.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              <p className="metric-value">R$ {(metrics.totalRevenue / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
             </div>
             <TrendingUp className="text-accent" size={24} />
           </div>
@@ -79,129 +149,92 @@ export default function Dashboard() {
               <p className="metric-label">Estoque Baixo</p>
               <p className="metric-value text-amber-600 dark:text-amber-400">{metrics.lowStockItems}</p>
             </div>
-            <AlertCircle className="text-amber-500" size={24} />
+            <AlertCircle className="text-amber-600" size={24} />
           </div>
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-4">Requer atenção</p>
+          <p className="text-xs text-muted-foreground mt-4">Itens para reabastecer</p>
         </div>
 
         <div className="metric-card">
           <div className="flex items-start justify-between">
             <div>
-              <p className="metric-label">Valor do Estoque</p>
-              <p className="metric-value">R$ 8.450</p>
+              <p className="metric-label">Clientes</p>
+              <p className="metric-value">{metrics.totalCustomers}</p>
+            </div>
+            <ShoppingCart className="text-accent" size={24} />
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">Clientes cadastrados</p>
+        </div>
+
+        <div className="metric-card">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="metric-label">Produtos</p>
+              <p className="metric-value">{metrics.totalProducts}</p>
             </div>
             <Package className="text-accent" size={24} />
           </div>
-          <p className="text-xs text-muted-foreground mt-4">Produtos em estoque</p>
-        </div>
-
-        <div className="metric-card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="metric-label">Aniversarios</p>
-              <p className="metric-value text-rose-600 dark:text-rose-400">{monthBirthdayCustomers.length}</p>
-            </div>
-            <Cake className="text-rose-500" size={24} />
-          </div>
-          <p className="text-xs text-muted-foreground mt-4">Clientes este mes</p>
+          <p className="text-xs text-muted-foreground mt-4">Produtos no catálogo</p>
         </div>
       </div>
 
-      {monthBirthdayCustomers.length > 0 && (
-        <Card className="p-6 border-rose-200 dark:border-rose-900/30 bg-rose-50/50 dark:bg-rose-900/10">
-          <div className="flex items-center gap-3 mb-4">
-            <Cake className="text-rose-500" size={24} />
-            <h2 className="text-lg font-semibold text-foreground">Aniversariantes do Mes</h2>
+      {/* Aniversariantes do Mês */}
+      {birthdayCustomers.length > 0 && (
+        <Card className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
+          <div className="flex items-center gap-2 mb-4">
+            <Cake className="w-5 h-5 text-amber-600" />
+            <h2 className="text-lg font-semibold text-amber-900">Aniversariantes do Mês</h2>
           </div>
-          <div className="space-y-3">
-            {monthBirthdayCustomers.map((customer) => (
-              <div key={customer.id} className="flex items-center justify-between p-3 bg-white dark:bg-card rounded-lg">
-                <div>
-                  <p className="font-medium text-foreground">{customer.name}</p>
-                  <p className="text-sm text-muted-foreground">{customer.age} anos</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
-                    {new Date(customer.birthDate).toLocaleDateString('pt-BR', { month: 'long', day: 'numeric' })}
-                  </p>
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {birthdayCustomers.map(customer => (
+              <div key={customer.id} className="bg-white rounded-lg p-3 border border-amber-100">
+                <p className="font-medium text-foreground">{customer.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {customer.birth_date && new Date(customer.birth_date).toLocaleDateString('pt-BR')}
+                </p>
               </div>
             ))}
           </div>
         </Card>
       )}
 
+      {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Vendas por Dia</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={salesData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" stroke="var(--muted-foreground)" />
-              <YAxis stroke="var(--muted-foreground)" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--card)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '0.5rem',
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="sales"
-                stroke="var(--primary)"
-                strokeWidth={2}
-                dot={{ fill: 'var(--primary)', r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <h2 className="text-lg font-semibold mb-4 text-foreground">Vendas por Dia</h2>
+          {salesData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={salesData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Line type="monotone" dataKey="revenue" stroke="#D4A574" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-muted-foreground text-center py-8">Nenhuma venda registrada</p>
+          )}
         </Card>
 
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Receita por Dia</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={salesData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" stroke="var(--muted-foreground)" />
-              <YAxis stroke="var(--muted-foreground)" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--card)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '0.5rem',
-                }}
-              />
-              <Bar dataKey="revenue" fill="var(--accent)" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <h2 className="text-lg font-semibold mb-4 text-foreground">Produtos Mais Vendidos</h2>
+          {topProducts.length > 0 ? (
+            <div className="space-y-3">
+              {topProducts.map((product, idx) => (
+                <div key={idx} className="flex justify-between items-center p-3 border-b border-border last:border-0">
+                  <div>
+                    <p className="font-medium text-foreground">{product.name}</p>
+                    <p className="text-xs text-muted-foreground">{product.sales} unidades vendidas</p>
+                  </div>
+                  <p className="font-bold text-accent">R$ {(product.revenue / 100).toFixed(2)}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-8">Nenhuma venda registrada</p>
+          )}
         </Card>
       </div>
-
-      <Card className="p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Produtos Mais Vendidos</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Produto</th>
-                <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Vendas</th>
-                <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Receita</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topProducts.map((product, idx) => (
-                <tr key={idx} className="border-b border-border hover:bg-muted/30 transition-colors">
-                  <td className="py-3 px-4 text-foreground">{product.name}</td>
-                  <td className="text-right py-3 px-4 text-foreground">{product.sales}</td>
-                  <td className="text-right py-3 px-4 font-semibold text-accent">
-                    R$ {product.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
     </div>
   );
 }
