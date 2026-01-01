@@ -3,20 +3,32 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('ERRO CRÍTICO: Variáveis do Supabase não encontradas! Verifique o painel da Vercel.');
+}
+
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
-// Helper para lidar com erros
+// Helper para lidar com erros com logs detalhados
 const handleError = (error: any, context: string) => {
   if (error) {
-    console.error(`Erro em ${context}:`, error);
-    throw error;
+    console.error(`[SUPABASE ERROR] em ${context}:`, {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    });
+    return true;
   }
+  return false;
 };
 
 // --- INSUMOS (INGREDIENTS) ---
 export async function getIngredients() {
+  console.log('[SUPABASE] Buscando ingredientes...');
   const { data, error } = await supabase.from('ingredients').select('*').order('name');
-  handleError(error, 'getIngredients');
+  if (handleError(error, 'getIngredients')) return [];
+  console.log(`[SUPABASE] ${data?.length || 0} ingredientes encontrados.`);
   return data || [];
 }
 
@@ -38,16 +50,11 @@ export async function deleteIngredient(id: number) {
 }
 
 // --- RECEITAS (RECIPES) ---
-// Nota: Como a tabela 'recipes' no banco é de ligação, vamos usar uma abordagem 
-// onde salvamos o cabeçalho da receita na tabela 'ingredients' com is_processed = true
-// Isso unifica tudo e resolve os problemas de chave estrangeira (FK).
-
 export async function getRecipes() {
-  // Buscamos itens que são processados (receitas)
+  console.log('[SUPABASE] Buscando receitas...');
   const { data, error } = await supabase.from('ingredients').select('*').eq('is_processed', true).order('name');
-  handleError(error, 'getRecipes');
+  if (handleError(error, 'getRecipes')) return [];
   
-  // Para cada receita, buscamos seus componentes na tabela 'recipes'
   const recipesWithComponents = await Promise.all((data || []).map(async (recipe) => {
     const { data: components, error: compError } = await supabase
       .from('recipes')
@@ -58,7 +65,7 @@ export async function getRecipes() {
       ...recipe,
       costPerUnit: recipe.cost,
       yieldUnit: recipe.unit,
-      yield: 1, // Valor padrão se não houver na tabela
+      yield: 1,
       ingredients: (components || []).map(c => ({
         id: c.id,
         ingredientId: c.component_ingredient_id,
@@ -71,11 +78,11 @@ export async function getRecipes() {
     };
   }));
 
+  console.log(`[SUPABASE] ${recipesWithComponents.length} receitas processadas.`);
   return recipesWithComponents;
 }
 
 export async function saveFullRecipe(recipeData: any) {
-  // 1. Salva/Atualiza o cabeçalho na tabela ingredients
   const ingredientPayload = {
     name: recipeData.name,
     unit: recipeData.yieldUnit,
@@ -84,16 +91,14 @@ export async function saveFullRecipe(recipeData: any) {
   };
 
   let recipeId = recipeData.id;
-  if (recipeId && recipeId > 1) { // ID real do banco
+  if (recipeId && recipeId > 1) {
     await updateIngredient(recipeId, ingredientPayload);
-    // Limpa componentes antigos
     await supabase.from('recipes').delete().eq('ingredient_id', recipeId);
   } else {
     const newIng = await addIngredient(ingredientPayload);
     recipeId = newIng.id;
   }
 
-  // 2. Salva os componentes na tabela recipes
   if (recipeData.ingredients && recipeData.ingredients.length > 0) {
     const components = recipeData.ingredients.map((ing: any) => ({
       ingredient_id: recipeId,
@@ -109,10 +114,11 @@ export async function saveFullRecipe(recipeData: any) {
 
 // --- PRODUTOS (PRODUCTS) ---
 export async function getProductsWithIngredients() {
+  console.log('[SUPABASE] Buscando produtos...');
   const { data: products, error } = await supabase.from('products').select('*').order('name');
-  handleError(error, 'getProducts');
+  if (handleError(error, 'getProducts')) return [];
 
-  return await Promise.all((products || []).map(async (product) => {
+  const result = await Promise.all((products || []).map(async (product) => {
     const { data: components } = await supabase
       .from('product_ingredients')
       .select('*')
@@ -123,45 +129,50 @@ export async function getProductsWithIngredients() {
       ingredients: components || []
     };
   }));
+  
+  console.log(`[SUPABASE] ${result.length} produtos encontrados.`);
+  return result;
 }
 
-export async function saveFullProduct(productData: any) {
+export async function addProduct(product: any) {
   const payload = {
-    name: productData.name,
-    description: productData.description,
-    category_id: productData.category_id,
-    price: productData.price,
-    production_cost: productData.production_cost
+    name: product.name,
+    description: product.description,
+    category_id: product.category_id,
+    price: product.price,
+    production_cost: product.production_cost
   };
+  const { data, error } = await supabase.from('products').insert([payload]).select();
+  handleError(error, 'addProduct');
+  return data?.[0];
+}
 
-  let productId = productData.id;
-  if (productId) {
-    await supabase.from('products').update(payload).eq('id', productId);
-    await supabase.from('product_ingredients').delete().eq('product_id', productId);
-  } else {
-    const { data, error } = await supabase.from('products').insert([payload]).select();
-    handleError(error, 'addProduct');
-    productId = data?.[0].id;
-  }
+export async function updateProduct(id: number, product: any) {
+  const payload = {
+    name: product.name,
+    description: product.description,
+    category_id: product.category_id,
+    price: product.price,
+    production_cost: product.production_cost
+  };
+  const { data, error } = await supabase.from('products').update(payload).eq('id', id).select();
+  handleError(error, 'updateProduct');
+  return data?.[0];
+}
 
-  if (productData.ingredients && productData.ingredients.length > 0) {
-    const components = productData.ingredients.map((ing: any) => ({
-      product_id: productId,
-      ingredient_id: ing.ingredient_id,
-      ingredient_name: ing.ingredient_name,
-      quantity: ing.quantity,
-      unit: ing.unit,
-      cost: ing.cost,
-      is_processed: ing.is_processed
-    }));
-    await supabase.from('product_ingredients').insert(components);
-  }
-  
-  return { id: productId };
+export async function addProductIngredient(ingredient: any) {
+  const { data, error } = await supabase.from('product_ingredients').insert([ingredient]).select();
+  handleError(error, 'addProductIngredient');
+  return data?.[0];
+}
+
+export async function deleteProductIngredientsByProductId(productId: number) {
+  const { error } = await supabase.from('product_ingredients').delete().eq('product_id', productId);
+  handleError(error, 'deleteProductIngredients');
 }
 
 export async function deleteProduct(id: number) {
-  await supabase.from('product_ingredients').delete().eq('product_id', id);
+  await deleteProductIngredientsByProductId(id);
   const { error } = await supabase.from('products').delete().eq('id', id);
   handleError(error, 'deleteProduct');
 }
