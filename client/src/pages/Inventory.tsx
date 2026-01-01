@@ -99,6 +99,24 @@ export default function Inventory() {
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
   const [ingredientQuantity, setIngredientQuantity] = useState(0);
 
+  // Funções para localStorage
+  const loadProductsFromStorage = (): Product[] => {
+    try {
+      const stored = localStorage.getItem('cake_shop_products');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveProductsToStorage = (prods: Product[]) => {
+    try {
+      localStorage.setItem('cake_shop_products', JSON.stringify(prods));
+    } catch (error) {
+      console.error('Erro ao salvar no localStorage:', error);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -106,9 +124,24 @@ export default function Inventory() {
   async function loadData() {
     setLoading(true);
     try {
-      const productsData = await getProductsWithIngredients();
-      setProducts(productsData);
-      
+      // Tentar carregar do Supabase
+      try {
+        const productsData = await getProductsWithIngredients();
+        if (productsData && productsData.length > 0) {
+          setProducts(productsData);
+          saveProductsToStorage(productsData);
+        } else {
+          // Se Supabase retornar vazio, tentar localStorage
+          const stored = loadProductsFromStorage();
+          setProducts(stored);
+        }
+      } catch (supabaseError) {
+        // Se Supabase falhar, usar localStorage
+        console.warn('Supabase indisponível, usando localStorage:', supabaseError);
+        const stored = loadProductsFromStorage();
+        setProducts(stored);
+      }
+
       try {
         const ingredientsData = await getIngredients();
         if (ingredientsData && ingredientsData.length > 0) {
@@ -122,7 +155,6 @@ export default function Inventory() {
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       setIngredients(exampleIngredients);
-      toast.error('Erro ao carregar produtos');
     }
     setLoading(false);
   }
@@ -200,45 +232,74 @@ export default function Inventory() {
 
     try {
       let productId: number;
+      let updatedProducts = [...products];
 
       if (editingProduct?.id) {
         // Atualizar produto existente
-        await updateProduct(editingProduct.id, {
-          name: formData.name,
-          description: formData.description,
-          category_id: formData.category_id,
-          price: formData.price,
-          production_cost: formData.production_cost,
-        });
-
-        // Deletar insumos antigos
-        await deleteProductIngredientsByProductId(editingProduct.id);
         productId = editingProduct.id;
+        updatedProducts = updatedProducts.map(p =>
+          p.id === productId
+            ? {
+                ...formData,
+                id: productId,
+              }
+            : p
+        );
       } else {
         // Criar novo produto
-        const newProduct = await addProduct({
-          name: formData.name,
-          description: formData.description,
-          category_id: formData.category_id,
-          price: formData.price,
-          production_cost: formData.production_cost,
+        productId = Math.max(...products.map(p => p.id || 0), 0) + 1;
+        updatedProducts.push({
+          ...formData,
+          id: productId,
         });
-        productId = newProduct.id;
       }
 
-      // Salvar insumos do produto
-      if (formData.ingredients && formData.ingredients.length > 0) {
-        for (const ingredient of formData.ingredients) {
-          await addProductIngredient({
-            product_id: productId,
-            ingredient_id: ingredient.ingredient_id,
-            ingredient_name: ingredient.ingredient_name,
-            quantity: ingredient.quantity,
-            unit: ingredient.unit,
-            cost: ingredient.cost,
-            is_processed: ingredient.is_processed,
+      // Salvar no localStorage
+      saveProductsToStorage(updatedProducts);
+      setProducts(updatedProducts);
+
+      // Tentar salvar no Supabase (não bloqueia se falhar)
+      try {
+        if (editingProduct?.id) {
+          await updateProduct(editingProduct.id, {
+            name: formData.name,
+            description: formData.description,
+            category_id: formData.category_id,
+            price: formData.price,
+            production_cost: formData.production_cost,
           });
+
+          await deleteProductIngredientsByProductId(editingProduct.id);
+        } else {
+          const newProduct = await addProduct({
+            name: formData.name,
+            description: formData.description,
+            category_id: formData.category_id,
+            price: formData.price,
+            production_cost: formData.production_cost,
+          });
+
+          if (newProduct?.id) {
+            productId = newProduct.id;
+          }
         }
+
+        // Salvar insumos do produto
+        if (formData.ingredients && formData.ingredients.length > 0) {
+          for (const ingredient of formData.ingredients) {
+            await addProductIngredient({
+              product_id: productId,
+              ingredient_id: ingredient.ingredient_id,
+              ingredient_name: ingredient.ingredient_name,
+              quantity: ingredient.quantity,
+              unit: ingredient.unit,
+              cost: ingredient.cost,
+              is_processed: ingredient.is_processed,
+            });
+          }
+        }
+      } catch (supabaseError) {
+        console.warn('Supabase indisponível, dados salvos localmente:', supabaseError);
       }
 
       toast.success(editingProduct ? 'Produto atualizado com sucesso' : 'Produto adicionado com sucesso');
@@ -253,9 +314,19 @@ export default function Inventory() {
   async function handleDelete(id: number) {
     if (confirm('Tem certeza que deseja deletar este produto?')) {
       try {
-        await deleteProduct(id);
+        // Deletar do localStorage
+        const updatedProducts = products.filter(p => p.id !== id);
+        saveProductsToStorage(updatedProducts);
+        setProducts(updatedProducts);
+
+        // Tentar deletar do Supabase (não bloqueia se falhar)
+        try {
+          await deleteProduct(id);
+        } catch (supabaseError) {
+          console.warn('Supabase indisponível, produto deletado localmente:', supabaseError);
+        }
+
         toast.success('Produto deletado com sucesso');
-        loadData();
       } catch (error) {
         console.error('Erro ao deletar produto:', error);
         toast.error('Erro ao deletar produto');

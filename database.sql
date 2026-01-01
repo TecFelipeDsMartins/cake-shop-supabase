@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS product_categories (
 -- Tabela de Produtos
 CREATE TABLE IF NOT EXISTS products (
   id BIGSERIAL PRIMARY KEY,
-  name VARCHAR(255) NOT NULL UNIQUE,
+  name VARCHAR(255) NOT NULL,
   category_id BIGINT REFERENCES product_categories(id),
   description TEXT,
   price DECIMAL(10, 2) NOT NULL DEFAULT 0,
@@ -60,7 +60,11 @@ CREATE TABLE IF NOT EXISTS product_ingredients (
   id BIGSERIAL PRIMARY KEY,
   product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   ingredient_id BIGINT NOT NULL REFERENCES ingredients(id),
+  ingredient_name VARCHAR(255),
   quantity DECIMAL(10, 2) NOT NULL,
+  unit VARCHAR(50),
+  cost DECIMAL(10, 2) DEFAULT 0,
+  is_processed BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
