@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Calculator } from 'lucide-react';
+import { Plus, Trash2, Calculator, X } from 'lucide-react';
 import { Recipe, RecipeIngredient, IngredientType } from '@/lib/types';
 import { updateRecipeIngredientsCosts, detectCycles } from '@/lib/recipeUtils';
 
@@ -66,8 +66,8 @@ export default function RecipeEditorModal({
     targetUnit: string,
     baseCost: number
   ): number => {
-    const unit = baseUnit.toLowerCase();
-    const target = targetUnit.toLowerCase();
+    const unit = (baseUnit || 'kg').toLowerCase();
+    const target = (targetUnit || 'g').toLowerCase();
 
     if (unit === target) return baseCost;
 
@@ -79,12 +79,12 @@ export default function RecipeEditorModal({
     if (unit === 'l' && target === 'ml') return baseCost / 1000;
     if (unit === 'ml' && target === 'l') return baseCost * 1000;
 
-    return baseCost; // Se não houver conversão conhecida, mantém o custo base
+    return baseCost;
   };
 
   const handleAddIngredient = () => {
     if (!newIngredient.ingredientId || !newIngredient.ingredientName) {
-      setError('Selecione um insumo');
+      setError('Selecione um insumo ou receita');
       return;
     }
 
@@ -143,196 +143,160 @@ export default function RecipeEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <Card className="w-full max-w-2xl max-h-[95vh] overflow-y-auto shadow-2xl border-accent/20">
         <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-foreground">
-              {recipe ? 'Editar Receita' : 'Nova Receita'}
-            </h2>
-            <Button variant="ghost" onClick={onClose}>&times;</Button>
+          <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">
+                {recipe ? 'Editar Receita' : 'Nova Receita'}
+              </h2>
+              <p className="text-sm text-muted-foreground">Configure a ficha técnica e custos</p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
+              <X size={20} />
+            </Button>
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-100 text-red-800 rounded-lg text-sm">
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-sm flex items-center gap-2">
+              <Calculator size={16} />
               {error}
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Tipo de Receita *
-                </label>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">Tipo de Receita *</label>
                 <select
                   value={formData.type}
-                  onChange={(e) =>
-                    setFormData({ ...formData, type: e.target.value as IngredientType })
-                  }
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value as IngredientType })}
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-accent outline-none"
                 >
                   {Object.entries(typeLabels).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
+                    <option key={key} value={key}>{label}</option>
                   ))}
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Nome da Receita *
-                </label>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">Nome da Receita *</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                  placeholder="Ex: Brigadeiro"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-accent outline-none"
+                  placeholder="Ex: Massa de Bolo de Chocolate"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Descrição
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent resize-none"
-                rows={2}
-                placeholder="Descrição da receita"
-              />
-            </div>
-
             <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Rendimento *
-                </label>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">Rendimento *</label>
                 <input
                   type="number"
                   step="0.1"
                   value={formData.yield}
                   onChange={(e) => setFormData({ ...formData, yield: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-accent outline-none"
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Unidade
-                </label>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">Unidade</label>
                 <input
                   type="text"
                   value={formData.yieldUnit}
                   onChange={(e) => setFormData({ ...formData, yieldUnit: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                  placeholder="un, kg, L, etc"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-accent outline-none"
+                  placeholder="un, kg, etc"
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Custo de Preparo (R$)
-                </label>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">Custo Preparo (R$)</label>
                 <input
                   type="number"
                   step="0.01"
                   value={formData.prepCost}
                   onChange={(e) => setFormData({ ...formData, prepCost: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                  placeholder="0.00"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-accent outline-none"
                 />
               </div>
             </div>
 
-            <div className="border-t border-border pt-4">
-              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-                <Calculator size={18} className="text-accent" />
-                Ingredientes e Composição
+            <div className="space-y-4">
+              <h3 className="font-bold text-lg text-foreground flex items-center gap-2 border-t border-border pt-4">
+                <Calculator size={20} className="text-accent" />
+                Composição da Ficha Técnica
               </h3>
 
-              {formData.ingredients.length > 0 && (
-                <div className="space-y-2 mb-4">
-                  {formData.ingredients.map((ing) => (
-                    <div
-                      key={ing.id}
-                      className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground">{ing.ingredientName}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {ing.quantity}
-                          {ing.unit} × R$ {ing.costPerUnit.toFixed(4)} = 
-                          <span className="font-bold text-foreground ml-1">R$ {ing.totalCost.toFixed(2)}</span>
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:bg-red-50"
-                        onClick={() => handleRemoveIngredient(ing.id)}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
+              {/* Lista de Ingredientes Adicionados */}
+              <div className="space-y-2">
+                {formData.ingredients.map((ing) => (
+                  <div key={ing.id} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border border-border/50 group">
+                    <div className="flex-1">
+                      <p className="font-bold text-foreground">{ing.ingredientName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {ing.quantity}{ing.unit} × R$ {ing.costPerUnit.toFixed(4)} = 
+                        <span className="font-bold text-accent ml-1">R$ {ing.totalCost.toFixed(2)}</span>
+                      </p>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveIngredient(ing.id)}
+                      className="text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
 
-              <div className="space-y-3 p-4 bg-accent/5 rounded-lg border border-accent/20">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">
-                      Selecionar Insumo ou Receita
-                    </label>
+              {/* Seletor para Adicionar Novo Ingrediente */}
+              <div className="p-4 bg-accent/5 rounded-xl border border-accent/20 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-muted-foreground uppercase">Item (Insumo ou Receita)</label>
                     <select
-                      value={newIngredient.ingredientId ? `${newIngredient.unit === 'g' || newIngredient.unit === 'kg' ? 'ing' : 'rec'}:${newIngredient.ingredientId}` : ''}
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm focus:ring-2 focus:ring-accent outline-none"
                       onChange={(e) => {
                         const val = e.target.value;
                         if (!val) return;
-                        
                         const [type, id] = val.split(':');
                         const numericId = parseInt(id);
-                        
+
                         if (type === 'ing') {
-                          const selected = ingredients.find(i => i.id === numericId);
-                          if (selected) {
-                            const targetUnit = newIngredient.unit || selected.unit || 'g';
-                            const proportionalCost = calculateProportionalCost(
-                              selected.unit || 'kg',
-                              targetUnit,
-                              selected.cost
-                            );
+                          const item = ingredients.find(i => i.id === numericId);
+                          if (item) {
+                            const targetUnit = newIngredient.unit || item.unit || 'g';
                             setNewIngredient({
                               ...newIngredient,
-                              ingredientId: selected.id,
-                              ingredientName: selected.name,
-                              costPerUnit: proportionalCost,
-                              unit: targetUnit,
+                              ingredientId: item.id,
+                              ingredientName: item.name,
+                              costPerUnit: calculateProportionalCost(item.unit || 'kg', targetUnit, item.cost),
+                              unit: targetUnit
                             });
                           }
                         } else {
-                          const selected = availableRecipes.find(r => r.id === numericId);
-                          if (selected) {
+                          const item = availableRecipes.find(r => r.id === numericId);
+                          if (item) {
                             setNewIngredient({
                               ...newIngredient,
-                              ingredientId: selected.id,
-                              ingredientName: selected.name,
-                              costPerUnit: selected.costPerUnit,
-                              unit: selected.yieldUnit,
+                              ingredientId: item.id,
+                              ingredientName: item.name,
+                              costPerUnit: item.costPerUnit,
+                              unit: item.yieldUnit
                             });
                           }
                         }
                       }}
-                      className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
+                      value={newIngredient.ingredientId ? `${ingredients.some(i => i.id === newIngredient.ingredientId) ? 'ing' : 'rec'}:${newIngredient.ingredientId}` : ''}
                     >
-                      <option value="">Escolha um item...</option>
+                      <option value="">Selecione um item para adicionar...</option>
                       {ingredients.length > 0 && (
-                        <optgroup label="Insumos Cadastrados">
+                        <optgroup label="📦 Insumos (Matéria-prima)">
                           {ingredients.map(i => (
                             <option key={`ing:${i.id}`} value={`ing:${i.id}`}>
                               {i.name} ({i.unit}) - R$ {i.cost.toFixed(2)}
@@ -341,7 +305,7 @@ export default function RecipeEditorModal({
                         </optgroup>
                       )}
                       {availableRecipes.length > 0 && (
-                        <optgroup label="Outras Receitas">
+                        <optgroup label="⚙️ Receitas (Bases e Preparos)">
                           {availableRecipes.map(r => (
                             <option key={`rec:${r.id}`} value={`rec:${r.id}`}>
                               {r.name} ({r.yieldUnit}) - R$ {r.costPerUnit.toFixed(2)}
@@ -353,50 +317,29 @@ export default function RecipeEditorModal({
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1">
-                        Quantidade
-                      </label>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-muted-foreground uppercase">Qtd</label>
                       <input
                         type="number"
                         value={newIngredient.quantity}
-                        onChange={(e) => {
-                          const qty = parseFloat(e.target.value) || 0;
-                          setNewIngredient({
-                            ...newIngredient,
-                            quantity: qty,
-                          });
-                        }}
-                        className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
+                        onChange={(e) => setNewIngredient({ ...newIngredient, quantity: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm outline-none"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1">
-                        Unidade
-                      </label>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-muted-foreground uppercase">Unidade</label>
                       <select
                         value={newIngredient.unit}
                         onChange={(e) => {
                           const newUnit = e.target.value;
-                          // Recalcular custo se mudar de kg para g ou vice-versa
                           let updatedCost = newIngredient.costPerUnit || 0;
-                          const selectedIng = ingredients.find(i => i.id === newIngredient.ingredientId);
-                          
-                          if (selectedIng) {
-                            updatedCost = calculateProportionalCost(
-                              selectedIng.unit || 'kg',
-                              newUnit,
-                              selectedIng.cost
-                            );
+                          const item = ingredients.find(i => i.id === newIngredient.ingredientId);
+                          if (item) {
+                            updatedCost = calculateProportionalCost(item.unit || 'kg', newUnit, item.cost);
                           }
-
-                          setNewIngredient({
-                            ...newIngredient,
-                            unit: newUnit,
-                            costPerUnit: updatedCost
-                          });
+                          setNewIngredient({ ...newIngredient, unit: newUnit, costPerUnit: updatedCost });
                         }}
-                        className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
+                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm outline-none"
                       >
                         <option value="g">g</option>
                         <option value="kg">kg</option>
@@ -407,46 +350,37 @@ export default function RecipeEditorModal({
                     </div>
                   </div>
                 </div>
-                
-                <Button
-                  type="button"
-                  onClick={handleAddIngredient}
-                  className="w-full bg-accent hover:bg-accent/90 text-white gap-2 mt-2"
-                >
-                  <Plus size={16} />
-                  Adicionar à Receita
+                <Button onClick={handleAddIngredient} className="w-full bg-accent hover:bg-accent/90 text-white font-bold py-2 rounded-lg transition-all">
+                  <Plus size={18} className="mr-2" /> Adicionar Item
                 </Button>
               </div>
             </div>
 
-            <div className="bg-muted/50 p-4 rounded-lg space-y-2 border border-border">
+            {/* Resumo de Custos */}
+            <div className="bg-muted/30 p-5 rounded-xl border border-border space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Custo dos Ingredientes:</span>
-                <span className="font-medium text-foreground">
-                  R$ {(formData.ingredients.reduce((sum, i) => sum + i.totalCost, 0)).toFixed(2)}
-                </span>
+                <span className="text-muted-foreground">Soma dos Ingredientes:</span>
+                <span className="font-semibold">R$ {formData.ingredients.reduce((sum, i) => sum + i.totalCost, 0).toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Custo de Preparo:</span>
-                <span className="font-medium text-foreground">R$ {formData.prepCost.toFixed(2)}</span>
+                <span className="font-semibold">R$ {formData.prepCost.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-lg font-bold border-t border-border pt-2">
-                <span className="text-foreground">Custo Total:</span>
-                <span className="text-accent">
+              <div className="flex justify-between items-center border-t border-border pt-3">
+                <span className="font-bold text-lg">Custo Total da Receita:</span>
+                <span className="text-2xl font-black text-accent">
                   R$ {(formData.ingredients.reduce((sum, i) => sum + i.totalCost, 0) + formData.prepCost).toFixed(2)}
                 </span>
               </div>
-              <div className="text-xs text-right text-muted-foreground">
-                Custo por {formData.yieldUnit}: R$ {((formData.ingredients.reduce((sum, i) => sum + i.totalCost, 0) + formData.prepCost) / (formData.yield || 1)).toFixed(2)}
+              <div className="text-xs text-right text-muted-foreground italic">
+                Custo unitário estimado: R$ {((formData.ingredients.reduce((sum, i) => sum + i.totalCost, 0) + formData.prepCost) / (formData.yield || 1)).toFixed(2)} por {formData.yieldUnit}
               </div>
             </div>
 
-            <div className="flex gap-3 justify-end pt-4">
-              <Button variant="outline" onClick={onClose} className="px-8">
-                Cancelar
-              </Button>
-              <Button onClick={handleSave} className="px-8 bg-primary hover:bg-primary/90">
-                Salvar Receita
+            <div className="flex gap-3 justify-end pt-4 border-t border-border">
+              <Button variant="outline" onClick={onClose} className="px-6 py-2 font-semibold">Cancelar</Button>
+              <Button onClick={handleSave} className="bg-primary hover:bg-primary/90 text-white px-10 py-2 font-bold rounded-lg shadow-lg transition-all">
+                Salvar Receita Completa
               </Button>
             </div>
           </div>
