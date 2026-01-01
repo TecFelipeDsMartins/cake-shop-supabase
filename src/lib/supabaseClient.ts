@@ -23,12 +23,34 @@ const handleError = (error: any, context: string) => {
   return false;
 };
 
-// --- INSUMOS (INGREDIENTS) ---
+// ===== INGREDIENT CATEGORIES =====
+export async function getIngredientCategories() {
+  const { data, error } = await supabase.from('ingredient_categories').select('*').order('name');
+  if (handleError(error, 'getIngredientCategories')) return [];
+  return data || [];
+}
+
+export async function addIngredientCategory(category: any) {
+  const { data, error } = await supabase.from('ingredient_categories').insert([category]).select();
+  handleError(error, 'addIngredientCategory');
+  return data?.[0];
+}
+
+export async function updateIngredientCategory(id: number, category: any) {
+  const { data, error } = await supabase.from('ingredient_categories').update(category).eq('id', id).select();
+  handleError(error, 'updateIngredientCategory');
+  return data?.[0];
+}
+
+export async function deleteIngredientCategory(id: number) {
+  const { error } = await supabase.from('ingredient_categories').delete().eq('id', id);
+  handleError(error, 'deleteIngredientCategory');
+}
+
+// ===== INSUMOS (INGREDIENTS) =====
 export async function getIngredients() {
-  console.log('[SUPABASE] Buscando ingredientes...');
   const { data, error } = await supabase.from('ingredients').select('*').order('name');
   if (handleError(error, 'getIngredients')) return [];
-  console.log(`[SUPABASE] ${data?.length || 0} ingredientes encontrados.`);
   return data || [];
 }
 
@@ -49,121 +71,148 @@ export async function deleteIngredient(id: number) {
   handleError(error, 'deleteIngredient');
 }
 
-// --- RECEITAS (RECIPES) ---
+// ===== RECEITAS (RECIPES) =====
 export async function getRecipes() {
-  console.log('[SUPABASE] Buscando receitas...');
-  const { data, error } = await supabase.from('ingredients').select('*').eq('is_processed', true).order('name');
+  const { data, error } = await supabase
+    .from('recipes')
+    .select(`
+      *,
+      ingredient:ingredients(name, cost, unit),
+      component:ingredients(name, cost, unit)
+    `)
+    .order('created_at', { ascending: false });
   if (handleError(error, 'getRecipes')) return [];
-  
-  const recipesWithComponents = await Promise.all((data || []).map(async (recipe) => {
-    const { data: components, error: compError } = await supabase
-      .from('recipes')
-      .select('*, component:ingredients!recipes_component_ingredient_id_fkey(*)')
-      .eq('ingredient_id', recipe.id);
-    
-    return {
-      ...recipe,
-      costPerUnit: recipe.cost,
-      yieldUnit: recipe.unit,
-      yield: 1,
-      ingredients: (components || []).map(c => ({
-        id: c.id,
-        ingredientId: c.component_ingredient_id,
-        ingredientName: c.component?.name || 'Item removido',
-        quantity: c.quantity,
-        unit: c.component?.unit || 'un',
-        costPerUnit: c.component?.cost || 0,
-        totalCost: c.quantity * (c.component?.cost || 0)
-      }))
-    };
-  }));
+  return data || [];
+}
 
-  console.log(`[SUPABASE] ${recipesWithComponents.length} receitas processadas.`);
-  return recipesWithComponents;
+export async function addRecipe(recipe: any) {
+  const { data, error } = await supabase.from('recipes').insert([recipe]).select();
+  handleError(error, 'addRecipe');
+  return data?.[0];
+}
+
+export async function updateRecipe(id: number, recipe: any) {
+  const { data, error } = await supabase.from('recipes').update(recipe).eq('id', id).select();
+  handleError(error, 'updateRecipe');
+  return data?.[0];
+}
+
+export async function deleteRecipe(id: number) {
+  const { error } = await supabase.from('recipes').delete().eq('id', id);
+  handleError(error, 'deleteRecipe');
 }
 
 export async function saveFullRecipe(recipeData: any) {
-  const ingredientPayload = {
-    name: recipeData.name,
-    unit: recipeData.yieldUnit,
-    cost: recipeData.costPerUnit,
-    is_processed: true
-  };
-
-  let recipeId = recipeData.id;
-  if (recipeId && recipeId > 1) {
-    await updateIngredient(recipeId, ingredientPayload);
-    await supabase.from('recipes').delete().eq('ingredient_id', recipeId);
-  } else {
-    const newIng = await addIngredient(ingredientPayload);
-    recipeId = newIng.id;
+  try {
+    let recipeId = recipeData.id;
+    
+    if (recipeId) {
+      // Atualizar receita existente
+      await updateRecipe(recipeId, {
+        ingredient_id: recipeData.ingredient_id,
+        component_ingredient_id: recipeData.component_ingredient_id,
+        quantity: recipeData.quantity
+      });
+    } else {
+      // Criar nova receita
+      const newRecipe = await addRecipe({
+        ingredient_id: recipeData.ingredient_id,
+        component_ingredient_id: recipeData.component_ingredient_id,
+        quantity: recipeData.quantity
+      });
+      recipeId = newRecipe?.id;
+    }
+    
+    return { id: recipeId };
+  } catch (error) {
+    handleError(error, 'saveFullRecipe');
+    throw error;
   }
-
-  if (recipeData.ingredients && recipeData.ingredients.length > 0) {
-    const components = recipeData.ingredients.map((ing: any) => ({
-      ingredient_id: recipeId,
-      component_ingredient_id: ing.ingredientId,
-      quantity: ing.quantity
-    }));
-    const { error } = await supabase.from('recipes').insert(components);
-    handleError(error, 'saveRecipeComponents');
-  }
-
-  return { id: recipeId };
 }
 
-// --- PRODUTOS (PRODUCTS) ---
+// ===== PRODUCT CATEGORIES =====
+export async function getProductCategories() {
+  const { data, error } = await supabase.from('product_categories').select('*').order('name');
+  if (handleError(error, 'getProductCategories')) return [];
+  return data || [];
+}
+
+export async function addProductCategory(category: any) {
+  const { data, error } = await supabase.from('product_categories').insert([category]).select();
+  handleError(error, 'addProductCategory');
+  return data?.[0];
+}
+
+export async function updateProductCategory(id: number, category: any) {
+  const { data, error } = await supabase.from('product_categories').update(category).eq('id', id).select();
+  handleError(error, 'updateProductCategory');
+  return data?.[0];
+}
+
+export async function deleteProductCategory(id: number) {
+  const { error } = await supabase.from('product_categories').delete().eq('id', id);
+  handleError(error, 'deleteProductCategory');
+}
+
+// ===== PRODUTOS (PRODUCTS) =====
+export async function getProducts() {
+  const { data, error } = await supabase
+    .from('products')
+    .select(`
+      *,
+      category:product_categories(name, color)
+    `)
+    .order('name');
+  if (handleError(error, 'getProducts')) return [];
+  return data || [];
+}
+
 export async function getProductsWithIngredients() {
-  console.log('[SUPABASE] Buscando produtos...');
   const { data: products, error } = await supabase.from('products').select('*').order('name');
   if (handleError(error, 'getProducts')) return [];
 
   const result = await Promise.all((products || []).map(async (product) => {
-    const { data: components } = await supabase
+    const { data: ingredients } = await supabase
       .from('product_ingredients')
       .select('*')
       .eq('product_id', product.id);
     
     return {
       ...product,
-      ingredients: components || []
+      ingredients: ingredients || []
     };
   }));
   
-  console.log(`[SUPABASE] ${result.length} produtos encontrados.`);
   return result;
 }
 
 export async function addProduct(product: any) {
-  const payload = {
-    name: product.name,
-    description: product.description,
-    category_id: product.category_id,
-    price: product.price,
-    production_cost: product.production_cost
-  };
-  const { data, error } = await supabase.from('products').insert([payload]).select();
+  const { data, error } = await supabase.from('products').insert([product]).select();
   handleError(error, 'addProduct');
   return data?.[0];
 }
 
 export async function updateProduct(id: number, product: any) {
-  const payload = {
-    name: product.name,
-    description: product.description,
-    category_id: product.category_id,
-    price: product.price,
-    production_cost: product.production_cost
-  };
-  const { data, error } = await supabase.from('products').update(payload).eq('id', id).select();
+  const { data, error } = await supabase.from('products').update(product).eq('id', id).select();
   handleError(error, 'updateProduct');
   return data?.[0];
 }
 
+export async function deleteProduct(id: number) {
+  const { error } = await supabase.from('products').delete().eq('id', id);
+  handleError(error, 'deleteProduct');
+}
+
+// ===== PRODUCT INGREDIENTS =====
 export async function addProductIngredient(ingredient: any) {
   const { data, error } = await supabase.from('product_ingredients').insert([ingredient]).select();
   handleError(error, 'addProductIngredient');
   return data?.[0];
+}
+
+export async function deleteProductIngredient(id: number) {
+  const { error } = await supabase.from('product_ingredients').delete().eq('id', id);
+  handleError(error, 'deleteProductIngredient');
 }
 
 export async function deleteProductIngredientsByProductId(productId: number) {
@@ -171,19 +220,225 @@ export async function deleteProductIngredientsByProductId(productId: number) {
   handleError(error, 'deleteProductIngredients');
 }
 
-export async function deleteProduct(id: number) {
-  await deleteProductIngredientsByProductId(id);
-  const { error } = await supabase.from('products').delete().eq('id', id);
-  handleError(error, 'deleteProduct');
-}
-
-// --- OUTROS ---
+// ===== CLIENTES (CUSTOMERS) =====
 export async function getCustomers() {
-  const { data } = await supabase.from('customers').select('*').order('name');
+  const { data, error } = await supabase.from('customers').select('*').order('name');
+  if (handleError(error, 'getCustomers')) return [];
   return data || [];
 }
 
-export async function getSales() {
-  const { data } = await supabase.from('sales').select('*').order('sale_date', { ascending: false });
+export async function addCustomer(customer: any) {
+  const { data, error } = await supabase.from('customers').insert([customer]).select();
+  handleError(error, 'addCustomer');
+  return data?.[0];
+}
+
+export async function updateCustomer(id: number, customer: any) {
+  const { data, error } = await supabase.from('customers').update(customer).eq('id', id).select();
+  handleError(error, 'updateCustomer');
+  return data?.[0];
+}
+
+export async function deleteCustomer(id: number) {
+  const { error } = await supabase.from('customers').delete().eq('id', id);
+  handleError(error, 'deleteCustomer');
+}
+
+// ===== CONTAS (ACCOUNTS) =====
+export async function getAccounts() {
+  const { data, error } = await supabase.from('accounts').select('*').order('name');
+  if (handleError(error, 'getAccounts')) return [];
   return data || [];
+}
+
+export async function addAccount(account: any) {
+  const { data, error } = await supabase.from('accounts').insert([account]).select();
+  handleError(error, 'addAccount');
+  return data?.[0];
+}
+
+export async function updateAccount(id: number, account: any) {
+  const { data, error } = await supabase.from('accounts').update(account).eq('id', id).select();
+  handleError(error, 'updateAccount');
+  return data?.[0];
+}
+
+export async function deleteAccount(id: number) {
+  const { error } = await supabase.from('accounts').delete().eq('id', id);
+  handleError(error, 'deleteAccount');
+}
+
+// ===== TRANSACTION CATEGORIES =====
+export async function getTransactionCategories() {
+  const { data, error } = await supabase.from('transaction_categories').select('*').order('name');
+  if (handleError(error, 'getTransactionCategories')) return [];
+  return data || [];
+}
+
+export async function addTransactionCategory(category: any) {
+  const { data, error } = await supabase.from('transaction_categories').insert([category]).select();
+  handleError(error, 'addTransactionCategory');
+  return data?.[0];
+}
+
+export async function updateTransactionCategory(id: number, category: any) {
+  const { data, error } = await supabase.from('transaction_categories').update(category).eq('id', id).select();
+  handleError(error, 'updateTransactionCategory');
+  return data?.[0];
+}
+
+export async function deleteTransactionCategory(id: number) {
+  const { error } = await supabase.from('transaction_categories').delete().eq('id', id);
+  handleError(error, 'deleteTransactionCategory');
+}
+
+// ===== PAYMENT METHODS =====
+export async function getPaymentMethods() {
+  const { data, error } = await supabase.from('payment_methods').select('*').order('name');
+  if (handleError(error, 'getPaymentMethods')) return [];
+  return data || [];
+}
+
+export async function addPaymentMethod(method: any) {
+  const { data, error } = await supabase.from('payment_methods').insert([method]).select();
+  handleError(error, 'addPaymentMethod');
+  return data?.[0];
+}
+
+export async function updatePaymentMethod(id: number, method: any) {
+  const { data, error } = await supabase.from('payment_methods').update(method).eq('id', id).select();
+  handleError(error, 'updatePaymentMethod');
+  return data?.[0];
+}
+
+export async function deletePaymentMethod(id: number) {
+  const { error } = await supabase.from('payment_methods').delete().eq('id', id);
+  handleError(error, 'deletePaymentMethod');
+}
+
+// ===== VENDAS (SALES) =====
+export async function getSales() {
+  const { data, error } = await supabase
+    .from('sales')
+    .select(`
+      *,
+      customer:customers(name, email, phone),
+      payment_method:payment_methods(name),
+      account:accounts(name)
+    `)
+    .order('sale_date', { ascending: false });
+  if (handleError(error, 'getSales')) return [];
+  return data || [];
+}
+
+export async function addSale(sale: any) {
+  const { data, error } = await supabase.from('sales').insert([sale]).select();
+  handleError(error, 'addSale');
+  return data?.[0];
+}
+
+export async function updateSale(id: number, sale: any) {
+  const { data, error } = await supabase.from('sales').update(sale).eq('id', id).select();
+  handleError(error, 'updateSale');
+  return data?.[0];
+}
+
+export async function deleteSale(id: number) {
+  const { error } = await supabase.from('sales').delete().eq('id', id);
+  handleError(error, 'deleteSale');
+}
+
+// ===== SALE ITEMS =====
+export async function getSaleItems(saleId: number) {
+  const { data, error } = await supabase
+    .from('sale_items')
+    .select(`
+      *,
+      product:products(name, price)
+    `)
+    .eq('sale_id', saleId);
+  if (handleError(error, 'getSaleItems')) return [];
+  return data || [];
+}
+
+export async function addSaleItem(item: any) {
+  const { data, error } = await supabase.from('sale_items').insert([item]).select();
+  handleError(error, 'addSaleItem');
+  return data?.[0];
+}
+
+export async function deleteSaleItem(id: number) {
+  const { error } = await supabase.from('sale_items').delete().eq('id', id);
+  handleError(error, 'deleteSaleItem');
+}
+
+// ===== FINANCIAL TRANSACTIONS =====
+export async function getFinancialTransactions() {
+  const { data, error } = await supabase
+    .from('financial_transactions')
+    .select(`
+      *,
+      category:transaction_categories(name, type),
+      account:accounts(name),
+      from_account:accounts(name),
+      to_account:accounts(name)
+    `)
+    .order('transaction_date', { ascending: false });
+  if (handleError(error, 'getFinancialTransactions')) return [];
+  return data || [];
+}
+
+export async function addFinancialTransaction(transaction: any) {
+  const { data, error } = await supabase.from('financial_transactions').insert([transaction]).select();
+  handleError(error, 'addFinancialTransaction');
+  return data?.[0];
+}
+
+export async function updateFinancialTransaction(id: number, transaction: any) {
+  const { data, error } = await supabase.from('financial_transactions').update(transaction).eq('id', id).select();
+  handleError(error, 'updateFinancialTransaction');
+  return data?.[0];
+}
+
+export async function deleteFinancialTransaction(id: number) {
+  const { error } = await supabase.from('financial_transactions').delete().eq('id', id);
+  handleError(error, 'deleteFinancialTransaction');
+}
+
+// ===== DASHBOARD METRICS =====
+export async function getDashboardMetrics() {
+  try {
+    // Total de vendas do mês
+    const { data: salesData } = await supabase
+      .from('sales')
+      .select('total_amount')
+      .gte('sale_date', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString());
+
+    // Total de produtos
+    const { data: productsData } = await supabase
+      .from('products')
+      .select('id');
+
+    // Total de clientes
+    const { data: customersData } = await supabase
+      .from('customers')
+      .select('id');
+
+    const totalSales = salesData?.reduce((sum, s) => sum + (s.total_amount || 0), 0) || 0;
+
+    return {
+      totalSales,
+      totalProducts: productsData?.length || 0,
+      totalCustomers: customersData?.length || 0,
+      salesCount: salesData?.length || 0
+    };
+  } catch (error) {
+    console.error('Erro ao buscar métricas:', error);
+    return {
+      totalSales: 0,
+      totalProducts: 0,
+      totalCustomers: 0,
+      salesCount: 0
+    };
+  }
 }
