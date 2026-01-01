@@ -144,25 +144,23 @@ export default function Ingredients() {
       saveIngredientsToStorage(updatedIngredients);
       setIngredients(updatedIngredients);
 
-      // Tentar salvar no Supabase (não bloqueia se falhar)
-      try {
-        if (editingId) {
-          await updateIngredient(editingId, formData);
-        } else {
-          const newIngredient = await addIngredient(formData);
-          if (newIngredient?.id) {
-            // Atualizar com ID do Supabase se disponível
-            const updated = updatedIngredients.map(i =>
-              i.id === Math.max(...ingredients.map(ing => ing.id || 0), 0) + 1
-                ? { ...i, id: newIngredient.id }
-                : i
-            );
-            saveIngredientsToStorage(updated);
-            setIngredients(updated);
+      // Tentar salvar no Supabase em background (não bloqueia)
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          try {
+            if (editingId) {
+              updateIngredient(editingId, formData).catch(err => 
+                console.warn('Supabase sync falhou:', err)
+              );
+            } else {
+              addIngredient(formData).catch(err => 
+                console.warn('Supabase sync falhou:', err)
+              );
+            }
+          } catch (error) {
+            console.warn('Supabase indisponível:', error);
           }
-        }
-      } catch (supabaseError) {
-        console.warn('Supabase indisponível, insumo salvo localmente:', supabaseError);
+        }, 0);
       }
 
       toast.success(editingId ? 'Insumo atualizado com sucesso' : 'Insumo adicionado com sucesso');
@@ -182,11 +180,13 @@ export default function Ingredients() {
         saveIngredientsToStorage(updatedIngredients);
         setIngredients(updatedIngredients);
 
-        // Tentar deletar do Supabase (não bloqueia se falhar)
-        try {
-          await deleteIngredient(id);
-        } catch (supabaseError) {
-          console.warn('Supabase indisponível, insumo deletado localmente:', supabaseError);
+        // Tentar deletar do Supabase em background
+        if (typeof window !== 'undefined') {
+          setTimeout(() => {
+            deleteIngredient(id).catch(err => 
+              console.warn('Supabase sync falhou:', err)
+            );
+          }, 0);
         }
 
         toast.success('Insumo deletado com sucesso');

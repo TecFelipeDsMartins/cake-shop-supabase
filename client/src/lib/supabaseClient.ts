@@ -42,7 +42,10 @@ export async function getIngredients() {
 
 export async function addIngredient(ingredient: any) {
   const { data, error } = await supabase.from('ingredients').insert([ingredient]).select();
-  if (error) console.error('Error adding ingredient:', error);
+  if (error) {
+    console.error('Error adding ingredient:', error);
+    throw new Error(`Erro ao adicionar insumo: ${error.message || JSON.stringify(error)}`);
+  }
   return data?.[0];
 }
 
