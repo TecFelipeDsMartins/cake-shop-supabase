@@ -45,6 +45,24 @@ export default function Ingredients() {
     is_processed: false,
   });
 
+  // Funções para localStorage
+  const loadIngredientsFromStorage = (): Ingredient[] => {
+    try {
+      const stored = localStorage.getItem('cake_shop_ingredients');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveIngredientsToStorage = (ings: Ingredient[]) => {
+    try {
+      localStorage.setItem('cake_shop_ingredients', JSON.stringify(ings));
+    } catch (error) {
+      console.error('Erro ao salvar no localStorage:', error);
+    }
+  };
+
   useEffect(() => {
     loadIngredients();
   }, []);
@@ -52,11 +70,25 @@ export default function Ingredients() {
   async function loadIngredients() {
     setLoading(true);
     try {
-      const data = await getIngredients();
-      setIngredients(data);
+      // Tentar carregar do Supabase
+      try {
+        const data = await getIngredients();
+        if (data && data.length > 0) {
+          setIngredients(data);
+          saveIngredientsToStorage(data);
+        } else {
+          // Se Supabase retornar vazio, tentar localStorage
+          const stored = loadIngredientsFromStorage();
+          setIngredients(stored);
+        }
+      } catch (supabaseError) {
+        // Se Supabase falhar, usar localStorage
+        console.warn('Supabase indisponível, usando localStorage:', supabaseError);
+        const stored = loadIngredientsFromStorage();
+        setIngredients(stored);
+      }
     } catch (error) {
       console.error('Erro ao carregar insumos:', error);
-      toast.error('Erro ao carregar insumos');
     }
     setLoading(false);
   }
@@ -86,14 +118,54 @@ export default function Ingredients() {
       return;
     }
 
+    if (formData.cost < 0) {
+      toast.error('Custo não pode ser negativo');
+      return;
+    }
+
     try {
+      let updatedIngredients = [...ingredients];
+
       if (editingId) {
-        await updateIngredient(editingId, formData);
-        toast.success('Insumo atualizado com sucesso');
+        // Atualizar insumo existente
+        updatedIngredients = updatedIngredients.map(i =>
+          i.id === editingId ? { ...formData, id: editingId } : i
+        );
       } else {
-        await addIngredient(formData);
-        toast.success('Insumo adicionado com sucesso');
+        // Criar novo insumo
+        const newId = Math.max(...ingredients.map(i => i.id || 0), 0) + 1;
+        updatedIngredients.push({
+          ...formData,
+          id: newId,
+        });
       }
+
+      // Salvar no localStorage
+      saveIngredientsToStorage(updatedIngredients);
+      setIngredients(updatedIngredients);
+
+      // Tentar salvar no Supabase (não bloqueia se falhar)
+      try {
+        if (editingId) {
+          await updateIngredient(editingId, formData);
+        } else {
+          const newIngredient = await addIngredient(formData);
+          if (newIngredient?.id) {
+            // Atualizar com ID do Supabase se disponível
+            const updated = updatedIngredients.map(i =>
+              i.id === Math.max(...ingredients.map(ing => ing.id || 0), 0) + 1
+                ? { ...i, id: newIngredient.id }
+                : i
+            );
+            saveIngredientsToStorage(updated);
+            setIngredients(updated);
+          }
+        }
+      } catch (supabaseError) {
+        console.warn('Supabase indisponível, insumo salvo localmente:', supabaseError);
+      }
+
+      toast.success(editingId ? 'Insumo atualizado com sucesso' : 'Insumo adicionado com sucesso');
       setShowModal(false);
       loadIngredients();
     } catch (error) {
@@ -105,9 +177,19 @@ export default function Ingredients() {
   async function handleDelete(id: number) {
     if (confirm('Tem certeza que deseja deletar este insumo?')) {
       try {
-        await deleteIngredient(id);
+        // Deletar do localStorage
+        const updatedIngredients = ingredients.filter(i => i.id !== id);
+        saveIngredientsToStorage(updatedIngredients);
+        setIngredients(updatedIngredients);
+
+        // Tentar deletar do Supabase (não bloqueia se falhar)
+        try {
+          await deleteIngredient(id);
+        } catch (supabaseError) {
+          console.warn('Supabase indisponível, insumo deletado localmente:', supabaseError);
+        }
+
         toast.success('Insumo deletado com sucesso');
-        loadIngredients();
       } catch (error) {
         console.error('Erro ao deletar insumo:', error);
         toast.error('Erro ao deletar insumo');
@@ -120,7 +202,7 @@ export default function Ingredients() {
   );
 
   const lowStockIngredients = ingredients.filter(i =>
-    i.current_stock! <= i.minimum_stock!
+    (i.current_stock || 0) <= (i.minimum_stock || 0)
   );
 
   if (loading) {
@@ -198,13 +280,13 @@ export default function Ingredients() {
                   <td className="py-3 px-4 text-foreground font-medium">{ingredient.name}</td>
                   <td className="py-3 px-4 text-muted-foreground">{ingredient.category || '-'}</td>
                   <td className="py-3 px-4 text-muted-foreground">{ingredient.unit}</td>
-                  <td className="py-3 px-4 text-right text-foreground">R$ {ingredient.cost.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-right text-foreground">R$ {(ingredient.cost || 0).toFixed(2)}</td>
                   <td className="py-3 px-4 text-right text-foreground">
-                    <span className={ingredient.current_stock! <= ingredient.minimum_stock! ? 'text-red-600 font-semibold' : ''}>
-                      {ingredient.current_stock}
+                    <span className={(ingredient.current_stock || 0) <= (ingredient.minimum_stock || 0) ? 'text-red-600 font-semibold' : ''}>
+                      {ingredient.current_stock || 0}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-right text-muted-foreground">{ingredient.minimum_stock}</td>
+                  <td className="py-3 px-4 text-right text-muted-foreground">{ingredient.minimum_stock || 0}</td>
                   <td className="py-3 px-4 text-center">
                     <span className="text-xs bg-muted px-2 py-1 rounded">
                       {ingredient.is_processed ? 'Processado' : 'Base'}
@@ -285,8 +367,9 @@ export default function Ingredients() {
                 <input
                   type="number"
                   step="0.01"
-                  value={formData.cost}
-                  onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
+                  min="0"
+                  value={formData.cost || 0}
+                  onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
                 />
               </div>
@@ -296,8 +379,9 @@ export default function Ingredients() {
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   value={formData.current_stock || 0}
-                  onChange={(e) => setFormData({ ...formData, current_stock: parseFloat(e.target.value) })}
+                  onChange={(e) => setFormData({ ...formData, current_stock: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
                 />
               </div>
@@ -307,8 +391,9 @@ export default function Ingredients() {
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   value={formData.minimum_stock || 0}
-                  onChange={(e) => setFormData({ ...formData, minimum_stock: parseFloat(e.target.value) })}
+                  onChange={(e) => setFormData({ ...formData, minimum_stock: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
                 />
               </div>
