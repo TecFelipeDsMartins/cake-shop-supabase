@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -214,9 +215,6 @@
     @apply bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-100;
   }
 }
-
-/* Google Fonts - Playfair Display for headers */
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap');
 
 @layer base {
   h1, h2, h3 {

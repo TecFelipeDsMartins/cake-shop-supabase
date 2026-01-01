@@ -1,150 +1,59 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Eye, Edit2, Trash2, Package, Zap, Cake } from 'lucide-react';
 import { Recipe, IngredientType } from '@/lib/types';
 import RecipeEditorModal from '@/components/RecipeEditorModal';
 import RecipeHierarchyView from '@/components/RecipeHierarchyView';
+import { getRecipes, addRecipe, updateRecipe, deleteRecipe, getIngredients } from '@/lib/supabaseClient';
+import { toast } from 'sonner';
+
+interface Ingredient {
+  id?: number;
+  name: string;
+  category?: string;
+  unit?: string;
+  cost: number;
+  minimum_stock?: number;
+  current_stock?: number;
+  is_processed?: boolean;
+  created_at?: string;
+}
 
 export default function Recipes() {
   const [showModal, setShowModal] = useState(false);
   const [showHierarchy, setShowHierarchy] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [recipes, setRecipes] = useState<Recipe[]>([
-    {
-      id: 1,
-      name: 'Leite Condensado',
-      type: 'base',
-      description: 'Leite condensado comprado',
-      category: 'Laticínios',
-      ingredients: [],
-      prepCost: 0,
-      totalCost: 8.5,
-      yield: 1,
-      yieldUnit: 'lata',
-      costPerUnit: 8.5,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      name: 'Manteiga',
-      type: 'base',
-      description: 'Manteiga de qualidade',
-      category: 'Laticínios',
-      ingredients: [],
-      prepCost: 0,
-      totalCost: 12.0,
-      yield: 1,
-      yieldUnit: 'kg',
-      costPerUnit: 12.0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 3,
-      name: 'Chocolate em Pó',
-      type: 'base',
-      description: 'Chocolate em pó premium',
-      category: 'Chocolates',
-      ingredients: [],
-      prepCost: 0,
-      totalCost: 18.0,
-      yield: 1,
-      yieldUnit: 'kg',
-      costPerUnit: 18.0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 4,
-      name: 'Brigadeiro',
-      type: 'processed',
-      description: 'Brigadeiro preparado com leite condensado, chocolate e manteiga',
-      category: 'Preparos',
-      ingredients: [
-        {
-          id: 1,
-          ingredientId: 1,
-          ingredientName: 'Leite Condensado',
-          quantity: 1,
-          unit: 'lata',
-          costPerUnit: 8.5,
-          totalCost: 8.5,
-        },
-        {
-          id: 2,
-          ingredientId: 3,
-          ingredientName: 'Chocolate em Pó',
-          quantity: 0.2,
-          unit: 'kg',
-          costPerUnit: 18.0,
-          totalCost: 3.6,
-        },
-        {
-          id: 3,
-          ingredientId: 2,
-          ingredientName: 'Manteiga',
-          quantity: 0.05,
-          unit: 'kg',
-          costPerUnit: 12.0,
-          totalCost: 0.6,
-        },
-      ],
-      prepCost: 2.0,
-      totalCost: 14.7,
-      yield: 1.5,
-      yieldUnit: 'kg',
-      costPerUnit: 9.8,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-      {
-        id: 5,
-        name: 'Bolo de Chocolate com Brigadeiro',
-        type: 'final',
-        description: 'Bolo de chocolate com cobertura e recheio de brigadeiro',
-        category: 'Bolos',
-        ingredients: [
-          {
-            id: 1,
-            ingredientId: 4,
-            ingredientName: 'Brigadeiro',
-            quantity: 0.5,
-            unit: 'kg',
-            costPerUnit: 9.8,
-            totalCost: 4.9,
-          },
-          {
-            id: 2,
-            ingredientId: 3,
-            ingredientName: 'Chocolate em Pó',
-            quantity: 0.3,
-            unit: 'kg',
-            costPerUnit: 18.0,
-            totalCost: 5.4,
-          },
-          {
-            id: 3,
-            ingredientId: 1,
-            ingredientName: 'Leite Condensado',
-            quantity: 0.2,
-            unit: 'lata',
-            costPerUnit: 8.5,
-            totalCost: 1.7,
-          },
-        ],
-        prepCost: 5.0,
-        totalCost: 22.0,
-        yield: 1,
-        yieldUnit: 'bolo',
-        costPerUnit: 22.0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-  ]);
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [recipesData, ingredientsData] = await Promise.all([
+        getRecipes(),
+        getIngredients()
+      ]);
+      
+      if (recipesData && recipesData.length > 0) {
+        setRecipes(recipesData);
+      }
+      
+      if (ingredientsData) {
+        setIngredients(ingredientsData);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+      toast.error('Erro ao carregar dados do banco de dados');
+    }
+    setLoading(false);
+  }
 
   const handleOpenModal = (recipe?: Recipe) => {
     if (recipe) {
@@ -155,18 +64,33 @@ export default function Recipes() {
     setShowModal(true);
   };
 
-  const handleSave = (recipe: Recipe) => {
-    if (editingId) {
-      setRecipes(recipes.map(r => (r.id === editingId ? recipe : r)));
-    } else {
-      setRecipes([...recipes, { ...recipe, id: Math.max(...recipes.map(r => r.id), 0) + 1 }]);
+  const handleSave = async (recipe: Recipe) => {
+    try {
+      if (editingId) {
+        await updateRecipe(editingId, recipe);
+        toast.success('Receita atualizada com sucesso');
+      } else {
+        await addRecipe(recipe);
+        toast.success('Receita adicionada com sucesso');
+      }
+      setShowModal(false);
+      loadData();
+    } catch (error) {
+      console.error('Erro ao salvar receita:', error);
+      toast.error('Erro ao salvar receita no banco de dados');
     }
-    setShowModal(false);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm('Tem certeza que deseja deletar esta receita?')) {
-      setRecipes(recipes.filter(r => r.id !== id));
+      try {
+        await deleteRecipe(id);
+        toast.success('Receita deletada com sucesso');
+        loadData();
+      } catch (error) {
+        console.error('Erro ao deletar receita:', error);
+        toast.error('Erro ao deletar receita');
+      }
     }
   };
 
@@ -187,6 +111,14 @@ export default function Recipes() {
     processed: recipes.filter(r => r.type === 'processed'),
     final: recipes.filter(r => r.type === 'final'),
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Carregando receitas...</p>
+      </div>
+    );
+  }
 
   if (showHierarchy !== null) {
     const recipe = recipes.find(r => r.id === showHierarchy);
@@ -350,6 +282,7 @@ export default function Recipes() {
         <RecipeEditorModal
           recipe={editingId ? recipes.find(r => r.id === editingId) : undefined}
           allRecipes={recipes}
+          ingredients={ingredients}
           onSave={handleSave}
           onClose={() => {
             setShowModal(false);

@@ -231,3 +231,27 @@ export async function deleteFinancialTransaction(id: number) {
   const { error } = await supabase.from('financial_transactions').delete().eq('id', id);
   if (error) console.error('Error deleting transaction:', error);
 }
+
+// Recipes
+export async function getRecipes() {
+  const { data, error } = await supabase.from('recipes').select('*');
+  if (error) console.error('Error fetching recipes:', error);
+  return data || [];
+}
+
+export async function addRecipe(recipe: any) {
+  const { data, error } = await supabase.from('recipes').insert([recipe]).select();
+  if (error) console.error('Error adding recipe:', error);
+  return data?.[0];
+}
+
+export async function updateRecipe(id: number, recipe: any) {
+  const { data, error } = await supabase.from('recipes').update(recipe).eq('id', id).select();
+  if (error) console.error('Error updating recipe:', error);
+  return data?.[0];
+}
+
+export async function deleteRecipe(id: number) {
+  const { error } = await supabase.from('recipes').delete().eq('id', id);
+  if (error) console.error('Error deleting recipe:', error);
+}

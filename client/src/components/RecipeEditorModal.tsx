@@ -5,9 +5,22 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Recipe, RecipeIngredient, IngredientType } from '@/lib/types';
 import { updateRecipeIngredientsCosts, detectCycles } from '@/lib/recipeUtils';
 
+interface Ingredient {
+  id?: number;
+  name: string;
+  category?: string;
+  unit?: string;
+  cost: number;
+  minimum_stock?: number;
+  current_stock?: number;
+  is_processed?: boolean;
+  created_at?: string;
+}
+
 interface RecipeEditorModalProps {
   recipe?: Recipe;
   allRecipes: Recipe[];
+  ingredients?: Ingredient[];
   onSave: (recipe: Recipe) => void;
   onClose: () => void;
 }
@@ -15,6 +28,7 @@ interface RecipeEditorModalProps {
 export default function RecipeEditorModal({
   recipe,
   allRecipes,
+  ingredients = [],
   onSave,
   onClose,
 }: RecipeEditorModalProps) {
@@ -251,42 +265,53 @@ export default function RecipeEditorModal({
                   <select
                     value={newIngredient.ingredientId || ''}
                     onChange={(e) => {
-                      const selected = availableRecipes.find(r => r.id === parseInt(e.target.value));
-                      if (selected) {
-                        setNewIngredient({
-                          ...newIngredient,
-                          ingredientId: selected.id,
-                          ingredientName: selected.name,
-                          costPerUnit: selected.costPerUnit,
-                        });
+                      const val = e.target.value;
+                      if (!val) return;
+                      
+                      const [type, id] = val.split(':');
+                      const numericId = parseInt(id);
+                      
+                      if (type === 'ing') {
+                        const selected = ingredients.find(i => i.id === numericId);
+                        if (selected) {
+                          setNewIngredient({
+                            ...newIngredient,
+                            ingredientId: selected.id,
+                            ingredientName: selected.name,
+                            costPerUnit: selected.cost,
+                            unit: selected.unit,
+                          });
+                        }
+                      } else {
+                        const selected = availableRecipes.find(r => r.id === numericId);
+                        if (selected) {
+                          setNewIngredient({
+                            ...newIngredient,
+                            ingredientId: selected.id,
+                            ingredientName: selected.name,
+                            costPerUnit: selected.costPerUnit,
+                            unit: selected.yieldUnit,
+                          });
+                        }
                       }
                     }}
                     className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     <option value="">Escolha um insumo...</option>
-                    {availableRecipes.filter(r => r.type === 'base').length > 0 && (
-                      <optgroup label="Insumos Base">
-                        {availableRecipes.filter(r => r.type === 'base').map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name} (R$ {r.costPerUnit.toFixed(2)}/un)
+                    {ingredients.length > 0 && (
+                      <optgroup label="Insumos Cadastrados">
+                        {ingredients.map((i) => (
+                          <option key={`ing-${i.id}`} value={`ing:${i.id}`}>
+                            {i.name} (R$ {i.cost.toFixed(2)}/{i.unit})
                           </option>
                         ))}
                       </optgroup>
                     )}
                     {availableRecipes.filter(r => r.type === 'processed').length > 0 && (
-                      <optgroup label="Insumos Processados">
+                      <optgroup label="Insumos Processados (Receitas)">
                         {availableRecipes.filter(r => r.type === 'processed').map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name} (R$ {r.costPerUnit.toFixed(2)}/un)
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {formData.type !== 'final' && availableRecipes.filter(r => r.type === 'final').length > 0 && (
-                      <optgroup label="Produtos Finais">
-                        {availableRecipes.filter(r => r.type === 'final').map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name} (R$ {r.costPerUnit.toFixed(2)}/un)
+                          <option key={`rec-${r.id}`} value={`rec:${r.id}`}>
+                            {r.name} (R$ {r.costPerUnit.toFixed(2)}/{r.yieldUnit})
                           </option>
                         ))}
                       </optgroup>
@@ -301,64 +326,51 @@ export default function RecipeEditorModal({
                     </label>
                     <input
                       type="number"
-                      step="0.1"
-                      value={newIngredient.quantity || 1}
+                      step="0.01"
+                      value={newIngredient.quantity}
                       onChange={(e) =>
-                        setNewIngredient({ ...newIngredient, quantity: parseFloat(e.target.value) })
+                        setNewIngredient({
+                          ...newIngredient,
+                          quantity: parseFloat(e.target.value),
+                        })
                       }
-                      className="w-full px-2 py-1 border border-border rounded text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-foreground mb-1">
                       Unidade
                     </label>
                     <input
                       type="text"
-                      value={newIngredient.unit || 'g'}
-                      onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })}
-                      className="w-full px-2 py-1 border border-border rounded text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                      value={newIngredient.unit}
+                      onChange={(e) =>
+                        setNewIngredient({ ...newIngredient, unit: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">
-                      Custo/un
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={newIngredient.costPerUnit || 0}
-                      onChange={(e) =>
-                        setNewIngredient({
-                          ...newIngredient,
-                          costPerUnit: parseFloat(e.target.value),
-                        })
-                      }
-                      className="w-full px-2 py-1 border border-border rounded text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      onClick={handleAddIngredient}
+                      className="w-full bg-accent hover:bg-accent/90"
+                    >
+                      <Plus size={18} />
+                    </Button>
                   </div>
                 </div>
-
-                <Button
-                  className="w-full bg-accent hover:bg-accent/90 flex items-center justify-center gap-2"
-                  onClick={handleAddIngredient}
-                >
-                  <Plus size={16} />
-                  Adicionar Ingrediente
-                </Button>
               </div>
             </div>
+          </div>
 
-            <div className="flex gap-3 justify-end pt-4 border-t border-border">
-              <Button variant="outline" onClick={onClose}>
-                Cancelar
-              </Button>
-              <Button className="bg-accent hover:bg-accent/90" onClick={handleSave}>
-                Salvar Receita
-              </Button>
-            </div>
+          <div className="flex gap-3 justify-end mt-8 pt-6 border-t border-border">
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
+              Salvar Receita
+            </Button>
           </div>
         </div>
       </Card>
