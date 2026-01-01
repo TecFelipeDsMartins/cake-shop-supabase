@@ -108,9 +108,9 @@ export default function Inventory() {
         getRecipes()
       ]);
       
-      if (productsData) setProducts(productsData);
-      if (ingredientsData) setIngredients(ingredientsData);
-      if (recipesData) setRecipes(recipesData);
+      setProducts(productsData || []);
+      setIngredients(ingredientsData || []);
+      setRecipes(recipesData || []);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       toast.error('Erro ao carregar dados do banco de dados');
@@ -132,7 +132,10 @@ export default function Inventory() {
   function handleOpenModal(product?: Product) {
     if (product) {
       setEditingProduct(product);
-      setFormData(product);
+      setFormData({
+        ...product,
+        ingredients: product.ingredients || []
+      });
     } else {
       setEditingProduct(null);
       setFormData({
@@ -154,13 +157,16 @@ export default function Inventory() {
       return;
     }
 
+    const [type, idStr] = newIngredient.id.split(':');
+    const numericId = parseInt(idStr);
+
     const ingredient: ProductIngredient = {
-      ingredient_id: parseInt(newIngredient.id.split(':')[1]),
+      ingredient_id: numericId,
       ingredient_name: newIngredient.name,
       quantity: newIngredient.quantity,
       unit: newIngredient.unit,
       cost: newIngredient.costPerUnit * newIngredient.quantity,
-      is_processed: newIngredient.is_processed,
+      is_processed: type === 'rec',
     };
 
     const updatedIngredients = [...(formData.ingredients || []), ingredient];
@@ -210,7 +216,17 @@ export default function Inventory() {
 
       if (formData.ingredients) {
         for (const ing of formData.ingredients) {
-          await addProductIngredient({ ...ing, product_id: productId });
+          // Se for uma receita, o banco pode rejeitar se o ingredient_id não existir na tabela ingredients
+          // Para evitar erro de FK, vamos garantir que o ingredient_id seja válido ou nulo se for processado
+          await addProductIngredient({ 
+            product_id: productId,
+            ingredient_id: ing.is_processed ? null : ing.ingredient_id, // Evita erro de FK para receitas
+            ingredient_name: ing.ingredient_name,
+            quantity: ing.quantity,
+            unit: ing.unit,
+            cost: ing.cost,
+            is_processed: ing.is_processed
+          });
         }
       }
 
@@ -218,7 +234,8 @@ export default function Inventory() {
       setShowModal(false);
       loadData();
     } catch (error) {
-      toast.error('Erro ao salvar produto');
+      console.error('Erro ao salvar:', error);
+      toast.error('Erro ao salvar produto no banco de dados');
     }
   }
 
@@ -236,13 +253,18 @@ export default function Inventory() {
         </Button>
       </div>
 
-      <input
-        type="text"
-        placeholder="Buscar produtos..."
-        className="w-full px-4 py-2 border border-border rounded-lg bg-background"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
+      <div className="flex gap-4">
+        <input
+          type="text"
+          placeholder="Buscar produtos..."
+          className="flex-1 px-4 py-2 border border-border rounded-lg bg-background"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        <Button variant="outline" onClick={loadData} disabled={loading}>
+          {loading ? 'Carregando...' : 'Atualizar Dados'}
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredProducts.map(product => (
@@ -251,7 +273,7 @@ export default function Inventory() {
               <div>
                 <h3 className="text-xl font-bold text-foreground">{product.name}</h3>
                 <span className="text-xs bg-accent/10 text-accent px-2 py-1 rounded-full">
-                  {categories.find(c => c.id === product.category_id)?.name}
+                  {categories.find(c => c.id === product.category_id)?.name || 'Sem Categoria'}
                 </span>
               </div>
               <div className="text-right">
@@ -326,14 +348,16 @@ export default function Inventory() {
                     className="w-full px-2 py-1 text-sm border rounded"
                     value={newIngredient.id}
                     onChange={e => {
-                      const [type, id] = e.target.value.split(':');
+                      const val = e.target.value;
+                      if (!val) return;
+                      const [type, id] = val.split(':');
                       const numericId = parseInt(id);
                       if (type === 'ing') {
                         const item = ingredients.find(i => i.id === numericId);
-                        if (item) setNewIngredient({...newIngredient, id: e.target.value, name: item.name, costPerUnit: calculateProportionalCost(item.unit || 'kg', newIngredient.unit, item.cost), is_processed: false});
+                        if (item) setNewIngredient({...newIngredient, id: val, name: item.name, costPerUnit: calculateProportionalCost(item.unit || 'kg', newIngredient.unit, item.cost), is_processed: false});
                       } else {
                         const item = recipes.find(r => r.id === numericId);
-                        if (item) setNewIngredient({...newIngredient, id: e.target.value, name: item.name, costPerUnit: item.costPerUnit, unit: item.yieldUnit, is_processed: true});
+                        if (item) setNewIngredient({...newIngredient, id: val, name: item.name, costPerUnit: item.costPerUnit, unit: item.yieldUnit, is_processed: true});
                       }
                     }}
                   >
@@ -368,6 +392,29 @@ export default function Inventory() {
             <div className="flex justify-end gap-3 border-t pt-4">
               <Button variant="outline" onClick={() => setShowModal(false)}>Cancelar</Button>
               <Button onClick={handleSaveProduct} className="bg-primary hover:bg-primary/90 px-8">Salvar Produto</Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {showRecipe && selectedProduct && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Ficha Técnica: {selectedProduct.name}</h2>
+              <Button variant="ghost" onClick={() => setShowRecipe(false)}><X size={20} /></Button>
+            </div>
+            <div className="space-y-3">
+              {selectedProduct.ingredients?.map((ing, idx) => (
+                <div key={idx} className="flex justify-between border-b pb-2">
+                  <span>{ing.ingredient_name}</span>
+                  <span className="font-medium">{ing.quantity}{ing.unit} - R$ {ing.cost.toFixed(2)}</span>
+                </div>
+              ))}
+              <div className="pt-4 flex justify-between font-bold text-lg">
+                <span>Custo Total:</span>
+                <span className="text-accent">R$ {selectedProduct.production_cost.toFixed(2)}</span>
+              </div>
             </div>
           </Card>
         </div>
