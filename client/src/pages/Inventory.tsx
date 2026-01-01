@@ -42,12 +42,33 @@ interface Category {
 }
 
 export default function Inventory() {
+  // Dados de exemplo para insumos
+  const exampleIngredients: Ingredient[] = [
+    // Insumos Base
+    { id: 1, name: 'Farinha de Trigo', unit: 'kg', cost: 5.50, is_processed: false },
+    { id: 2, name: 'Açúcar Cristal', unit: 'kg', cost: 4.20, is_processed: false },
+    { id: 3, name: 'Ovos', unit: 'dúzia', cost: 12.00, is_processed: false },
+    { id: 4, name: 'Leite Integral', unit: 'L', cost: 4.50, is_processed: false },
+    { id: 5, name: 'Manteiga', unit: 'kg', cost: 28.00, is_processed: false },
+    { id: 6, name: 'Chocolate em Pó', unit: 'kg', cost: 18.50, is_processed: false },
+    { id: 7, name: 'Chocolate Amargo', unit: 'kg', cost: 35.00, is_processed: false },
+    { id: 8, name: 'Fermento em Pó', unit: 'kg', cost: 22.00, is_processed: false },
+    { id: 9, name: 'Leite Condensado', unit: 'L', cost: 8.50, is_processed: false },
+    { id: 10, name: 'Coco Ralado', unit: 'kg', cost: 15.00, is_processed: false },
+    // Insumos Processados
+    { id: 11, name: 'Brigadeiro', unit: 'kg', cost: 25.00, is_processed: true },
+    { id: 12, name: 'Calda de Chocolate', unit: 'L', cost: 18.00, is_processed: true },
+    { id: 13, name: 'Ganache', unit: 'kg', cost: 32.00, is_processed: true },
+    { id: 14, name: 'Cobertura de Açúcar', unit: 'kg', cost: 12.00, is_processed: true },
+    { id: 15, name: 'Massa de Bolo', unit: 'kg', cost: 15.00, is_processed: true },
+  ];
+
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showRecipe, setShowRecipe] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>(exampleIngredients);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categories] = useState<Category[]>([
@@ -77,12 +98,22 @@ export default function Inventory() {
     setLoading(true);
     try {
       const productsData = await getProducts();
-      const ingredientsData = await getIngredients();
       setProducts(productsData);
-      setIngredients(ingredientsData);
+      // Tentar carregar insumos do Supabase, mas usar dados de exemplo como fallback
+      try {
+        const ingredientsData = await getIngredients();
+        if (ingredientsData && ingredientsData.length > 0) {
+          setIngredients(ingredientsData);
+        } else {
+          setIngredients(exampleIngredients);
+        }
+      } catch {
+        setIngredients(exampleIngredients);
+      }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      toast.error('Erro ao carregar dados');
+      setIngredients(exampleIngredients);
+      toast.error('Usando dados de exemplo');
     }
     setLoading(false);
   }
@@ -368,7 +399,7 @@ export default function Inventory() {
                         type="number"
                         step="0.01"
                         value={formData.price}
-                        onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                        onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
                       />
                     </div>
@@ -416,26 +447,22 @@ export default function Inventory() {
                     >
                       <option value="">-- Selecione um insumo --</option>
                       {baseIngredients.length > 0 && (
-                        <>
-                          <optgroup label="Insumos Base">
-                            {baseIngredients.map(ing => (
-                              <option key={ing.id} value={ing.id}>
-                                {ing.name} (R$ {ing.cost}/kg)
-                              </option>
-                            ))}
-                          </optgroup>
-                        </>
+                        <optgroup label="Insumos Base">
+                          {baseIngredients.map(ing => (
+                            <option key={ing.id} value={ing.id}>
+                              {ing.name} (R$ {ing.cost?.toFixed(2) || '0.00'}/{ing.unit})
+                            </option>
+                          ))}
+                        </optgroup>
                       )}
                       {processedIngredients.length > 0 && (
-                        <>
-                          <optgroup label="Insumos Processados">
-                            {processedIngredients.map(ing => (
-                              <option key={ing.id} value={ing.id}>
-                                {ing.name} (R$ {ing.cost}/kg) ⭐
-                              </option>
-                            ))}
-                          </optgroup>
-                        </>
+                        <optgroup label="Insumos Processados">
+                          {processedIngredients.map(ing => (
+                            <option key={ing.id} value={ing.id}>
+                              {ing.name} (R$ {ing.cost?.toFixed(2) || '0.00'}/{ing.unit}) ⭐
+                            </option>
+                          ))}
+                        </optgroup>
                       )}
                     </select>
                   </div>
@@ -445,8 +472,9 @@ export default function Inventory() {
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={ingredientQuantity}
-                      onChange={(e) => setIngredientQuantity(parseFloat(e.target.value))}
+                      onChange={(e) => setIngredientQuantity(parseFloat(e.target.value) || 0)}
                       className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
                     />
                   </div>
