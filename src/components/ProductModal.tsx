@@ -70,6 +70,14 @@ export default function ProductModal({
       unitCost: ingredient.unitCost,
     };
 
+    // Sincronizar com a nova estrutura de TechnicalSheetEntry
+    const newSheetEntry = {
+      parent_type: 'FINAL_PRODUCT' as const,
+      component_id: ingredient.id,
+      quantity: ingredientQuantity,
+      unit: ingredient.unit
+    };
+
     setFormData({
       ...formData,
       ingredients: [...formData.ingredients, newIngredient],
@@ -116,9 +124,17 @@ export default function ProductModal({
       return;
     }
 
+    // Preparar dados para salvamento unificado
+    const technicalSheet = formData.ingredients.map(ing => ({
+      component_id: ing.ingredientId,
+      quantity: ing.quantity,
+      unit: ing.unit
+    }));
+
     onSave({
       ...formData,
       cost: totalProductionCost,
+      technical_sheet: technicalSheet
     });
   };
 

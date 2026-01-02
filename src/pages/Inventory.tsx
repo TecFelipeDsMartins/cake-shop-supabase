@@ -4,13 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Plus, Edit2, Trash2, Eye, X, Calculator, RefreshCw } from 'lucide-react';
 import { 
   getProductsWithIngredients, 
-  addProduct, 
-  updateProduct,
+  saveFullProduct,
   deleteProduct, 
   getIngredients,
-  getRecipes,
-  addProductIngredient,
-  deleteProductIngredientsByProductId
+  getRecipes
 } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
@@ -120,23 +117,25 @@ export default function Inventory() {
   async function handleSaveProduct() {
     if (!formData.name.trim() || formData.price <= 0) return toast.error('Preencha os campos obrigatórios');
     try {
-      let productId = editingProduct?.id;
-      if (productId) {
-        await updateProduct(productId, formData);
-        await deleteProductIngredientsByProductId(productId);
-      } else {
-        const res = await addProduct(formData);
-        productId = res.id;
-      }
+      // Preparar ficha técnica para o novo formato
+      const technical_sheet = (formData.ingredients || []).map((ing: any) => ({
+        component_id: ing.ingredient_id,
+        quantity: ing.quantity,
+        unit: ing.unit
+      }));
 
-      for (const ing of (formData.ingredients || [])) {
-        await addProductIngredient({ ...ing, product_id: productId });
-      }
+      const productPayload = {
+        ...formData,
+        technical_sheet
+      };
+
+      await saveFullProduct(productPayload);
 
       toast.success('Produto salvo');
       setShowModal(false);
       loadData();
     } catch (error) {
+      console.error('Erro ao salvar produto:', error);
       toast.error('Erro ao salvar');
     }
   }

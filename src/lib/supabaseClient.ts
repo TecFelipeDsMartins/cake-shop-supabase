@@ -106,21 +106,34 @@ export async function saveFullRecipe(recipeData: any) {
   try {
     let recipeId = recipeData.id;
     
-    if (recipeId) {
-      // Atualizar receita existente
-      await updateRecipe(recipeId, {
-        ingredient_id: recipeData.ingredient_id,
-        component_ingredient_id: recipeData.component_ingredient_id,
-        quantity: recipeData.quantity
-      });
+    // 1. Salvar ou atualizar o item base (na tabela ingredients para receitas)
+    const ingredientPayload = {
+      name: recipeData.name,
+      cost: recipeData.prepCost, // Custo de preparo inicial
+      unit: recipeData.yieldUnit,
+      current_stock: recipeData.yield,
+      is_processed: true,
+      item_type: 'RECIPE'
+    };
+
+    if (recipeId && !isNaN(recipeId) && recipeId < 1) { // Novo item com ID temporário
+      const newIng = await addIngredient(ingredientPayload);
+      recipeId = newIng?.id;
+    } else if (recipeId) {
+      await updateIngredient(recipeId, ingredientPayload);
     } else {
-      // Criar nova receita
-      const newRecipe = await addRecipe({
-        ingredient_id: recipeData.ingredient_id,
-        component_ingredient_id: recipeData.component_ingredient_id,
-        quantity: recipeData.quantity
-      });
-      recipeId = newRecipe?.id;
+      const newIng = await addIngredient(ingredientPayload);
+      recipeId = newIng?.id;
+    }
+    
+    // 2. Salvar a ficha técnica
+    if (recipeId && recipeData.ingredients) {
+      const sheetEntries = recipeData.ingredients.map((ing: any) => ({
+        component_id: ing.ingredientId,
+        quantity: ing.quantity,
+        unit: ing.unit
+      }));
+      await saveTechnicalSheet(recipeId, 'RECIPE', sheetEntries);
     }
     
     return { id: recipeId };
@@ -193,9 +206,32 @@ export async function addProduct(product: any) {
 }
 
 export async function updateProduct(id: number, product: any) {
-  const { data, error } = await supabase.from('products').update(product).eq('id', id).select();
-  handleError(error, 'updateProduct');
+  const { technical_sheet, ...productData } = product;
+  const { data, error } = await supabase.from('products').update(productData).eq('id', id).select();
+  
+  if (!handleError(error, 'updateProduct') && technical_sheet) {
+    await saveTechnicalSheet(id, 'FINAL_PRODUCT', technical_sheet);
+  }
+  
   return data?.[0];
+}
+
+export async function saveFullProduct(product: any) {
+  const { technical_sheet, ...productData } = product;
+  let productId = product.id;
+
+  if (productId) {
+    await updateProduct(productId, product);
+  } else {
+    const { data, error } = await supabase.from('products').insert([productData]).select();
+    if (!handleError(error, 'addProduct') && data?.[0]) {
+      productId = data[0].id;
+      if (technical_sheet) {
+        await saveTechnicalSheet(productId, 'FINAL_PRODUCT', technical_sheet);
+      }
+    }
+  }
+  return { id: productId };
 }
 
 export async function deleteProduct(id: number) {
