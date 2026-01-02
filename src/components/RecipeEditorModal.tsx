@@ -59,6 +59,10 @@ export default function RecipeEditorModal({
   const [error, setError] = useState<string>('');
 
   const availableRecipes = allRecipes.filter(r => r.id !== formData.id);
+  
+  // Filtrar componentes baseados no tipo da receita atual
+  const filteredIngredients = ingredients.filter(i => !i.is_processed);
+  const filteredRecipes = availableRecipes;
 
   // Função para converter unidades e calcular custo proporcional
   const calculateProportionalCost = (
@@ -295,18 +299,18 @@ export default function RecipeEditorModal({
                       value={newIngredient.ingredientId ? `${ingredients.some(i => i.id === newIngredient.ingredientId) ? 'ing' : 'rec'}:${newIngredient.ingredientId}` : ''}
                     >
                       <option value="">Selecione um item para adicionar...</option>
-                      {ingredients.length > 0 && (
+                      {filteredIngredients.length > 0 && (
                         <optgroup label="📦 Insumos (Matéria-prima)">
-                          {ingredients.map(i => (
+                          {filteredIngredients.map(i => (
                             <option key={`ing:${i.id}`} value={`ing:${i.id}`}>
                               {i.name} ({i.unit}) - R$ {i.cost.toFixed(2)}
                             </option>
                           ))}
                         </optgroup>
                       )}
-                      {availableRecipes.length > 0 && (
+                      {formData.type !== 'base' && filteredRecipes.length > 0 && (
                         <optgroup label="⚙️ Receitas (Bases e Preparos)">
-                          {availableRecipes.map(r => (
+                          {filteredRecipes.map(r => (
                             <option key={`rec:${r.id}`} value={`rec:${r.id}`}>
                               {r.name} ({r.yieldUnit}) - R$ {r.costPerUnit.toFixed(2)}
                             </option>

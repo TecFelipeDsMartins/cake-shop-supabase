@@ -442,3 +442,51 @@ export async function getDashboardMetrics() {
     };
   }
 }
+
+// ===== FICHA TÉCNICA (TECHNICAL SHEETS) =====
+export async function getTechnicalSheet(parentId: number, parentType: string) {
+  const { data, error } = await supabase
+    .from('technical_sheets')
+    .select(`
+      *,
+      component:ingredients(name, cost, unit)
+    `)
+    .eq('parent_id', parentId)
+    .eq('parent_type', parentType);
+  
+  if (handleError(error, 'getTechnicalSheet')) return [];
+  return data || [];
+}
+
+export async function saveTechnicalSheet(parentId: number, parentType: string, entries: any[]) {
+  try {
+    // 1. Remover entradas antigas
+    const { error: deleteError } = await supabase
+      .from('technical_sheets')
+      .delete()
+      .eq('parent_id', parentId)
+      .eq('parent_type', parentType);
+    
+    if (deleteError) throw deleteError;
+
+    // 2. Inserir novas entradas
+    if (entries.length > 0) {
+      const formattedEntries = entries.map(entry => ({
+        parent_id: parentId,
+        parent_type: parentType,
+        component_id: entry.component_id,
+        quantity: entry.quantity,
+        unit: entry.unit
+      }));
+
+      const { error: insertError } = await supabase
+        .from('technical_sheets')
+        .insert(formattedEntries);
+      
+      if (insertError) throw insertError;
+    }
+  } catch (error) {
+    handleError(error, 'saveTechnicalSheet');
+    throw error;
+  }
+}

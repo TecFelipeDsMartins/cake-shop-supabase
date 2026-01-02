@@ -29,7 +29,8 @@ export default function Ingredients() {
     cost: 0,
     minimum_stock: 0,
     current_stock: 0,
-    is_processed: false
+    is_processed: false,
+    item_type: 'BASE'
   });
 
   useEffect(() => {
@@ -58,7 +59,8 @@ export default function Ingredients() {
         cost: ingredient.cost || 0,
         minimum_stock: ingredient.minimum_stock || 0,
         current_stock: ingredient.current_stock || 0,
-        is_processed: ingredient.is_processed || false
+        is_processed: ingredient.is_processed || false,
+        item_type: ingredient.item_type || 'BASE'
       });
     } else {
       setEditingId(null);
@@ -69,7 +71,8 @@ export default function Ingredients() {
         cost: 0,
         minimum_stock: 0,
         current_stock: 0,
-        is_processed: false
+        is_processed: false,
+        item_type: 'BASE'
       });
     }
     setShowModal(true);
@@ -90,7 +93,8 @@ export default function Ingredients() {
         cost: formData.cost,
         minimum_stock: formData.minimum_stock,
         current_stock: formData.current_stock,
-        is_processed: formData.is_processed
+        is_processed: formData.is_processed,
+        item_type: formData.item_type
       };
 
       if (editingId) {
