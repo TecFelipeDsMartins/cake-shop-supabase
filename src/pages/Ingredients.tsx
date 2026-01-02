@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Edit2, Trash2, Search, RefreshCw } from 'lucide-react';
-import { getIngredients, addIngredient, updateIngredient, deleteIngredient } from '@/lib/supabaseClient';
+import { getIngredients, addIngredient, updateIngredient, deleteIngredient, getIngredientCategories } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
 const INGREDIENT_CATEGORIES = [
@@ -25,6 +25,7 @@ export default function Ingredients() {
   const [formData, setFormData] = useState({
     name: '',
     category: 'Outros',
+    category_id: null as number | null,
     unit: 'kg',
     cost: 0,
     minimum_stock: 0,
@@ -32,6 +33,7 @@ export default function Ingredients() {
     is_processed: false,
     item_type: 'BASE'
   });
+  const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
@@ -40,11 +42,15 @@ export default function Ingredients() {
   async function loadData() {
     setLoading(true);
     try {
-      const data = await getIngredients();
-      setIngredients(data || []);
+      const [ingredientsData, categoriesData] = await Promise.all([
+        getIngredients(),
+        getIngredientCategories()
+      ]);
+      setIngredients(ingredientsData || []);
+      setCategories(categoriesData || []);
     } catch (error) {
-      console.error('Erro ao carregar insumos:', error);
-      toast.error('Erro ao carregar insumos');
+      console.error('Erro ao carregar dados:', error);
+      toast.error('Erro ao carregar dados');
     }
     setLoading(false);
   }
@@ -55,6 +61,7 @@ export default function Ingredients() {
       setFormData({
         name: ingredient.name,
         category: ingredient.category || 'Outros',
+        category_id: ingredient.category_id || null,
         unit: ingredient.unit || 'kg',
         cost: ingredient.cost || 0,
         minimum_stock: ingredient.minimum_stock || 0,
@@ -67,6 +74,7 @@ export default function Ingredients() {
       setFormData({
         name: '',
         category: 'Outros',
+        category_id: categories.length > 0 ? categories[0].id : null,
         unit: 'kg',
         cost: 0,
         minimum_stock: 0,
@@ -89,6 +97,7 @@ export default function Ingredients() {
       // para garantir que o insert funcione mesmo sem a relação de categorias completa
       const payload = {
         name: formData.name,
+        category_id: formData.category_id,
         unit: formData.unit,
         cost: formData.cost,
         minimum_stock: formData.minimum_stock,
@@ -174,6 +183,19 @@ export default function Ingredients() {
               <div>
                 <label className="block text-sm font-bold mb-1">Nome *</label>
                 <input type="text" className="w-full px-3 py-2 border rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-1">Categoria</label>
+                <select 
+                  className="w-full px-3 py-2 border rounded bg-background" 
+                  value={formData.category_id || ''} 
+                  onChange={e => setFormData({...formData, category_id: e.target.value ? parseInt(e.target.value) : null})}
+                >
+                  <option value="">Selecione uma categoria...</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
