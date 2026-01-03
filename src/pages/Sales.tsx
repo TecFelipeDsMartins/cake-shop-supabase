@@ -86,26 +86,77 @@ export default function Sales() {
   };
 
   const handleSave = async () => {
+    // Validações
     if (formData.items.length === 0) {
-      toast.error('Adicione pelo menos um item');
+      toast.error('Adicione pelo menos um item à venda');
       return;
     }
+
+    // Validar se produtos existem
+    for (const item of formData.items) {
+      const productId = parseInt(item.product_id);
+      if (!productId || isNaN(productId)) {
+        toast.error('Produto inválido encontrado');
+        return;
+      }
+      const product = products.find(p => p.id === productId);
+      if (!product) {
+        toast.error(`Produto com ID ${productId} não encontrado`);
+        return;
+      }
+      if (item.quantity <= 0) {
+        toast.error('Quantidade deve ser maior que zero');
+        return;
+      }
+      if (item.unit_price < 0) {
+        toast.error('Preço unitário não pode ser negativo');
+        return;
+      }
+    }
+
+    // Validar conta se fornecida
+    if (formData.account_id) {
+      const account = accounts.find(a => a.id === formData.account_id);
+      if (!account) {
+        toast.error('Conta selecionada não encontrada');
+        return;
+      }
+    }
+
+    // Validar método de pagamento se fornecido
+    if (formData.payment_method_id) {
+      const paymentMethod = paymentMethods.find(pm => pm.id === formData.payment_method_id);
+      if (!paymentMethod) {
+        toast.error('Método de pagamento selecionado não encontrado');
+        return;
+      }
+    }
     
-    const total_amount = formData.items.reduce((sum: number, item: any) => sum + item.subtotal, 0);
+    const total_amount = formData.items.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0);
+    
+    if (total_amount <= 0) {
+      toast.error('Total da venda deve ser maior que zero');
+      return;
+    }
+
     const salePayload = {
       customer_id: formData.customer_id || null,
       payment_method_id: formData.payment_method_id || null,
       account_id: formData.account_id || null,
       total_amount,
-      notes: formData.notes
+      notes: formData.notes || null
     };
 
     try {
       const newSale = await addSale(salePayload);
       
-      if (newSale && newSale.id) {
-        // Adicionar itens da venda
-        for (const item of formData.items) {
+      if (!newSale || !newSale.id) {
+        throw new Error('Falha ao criar venda');
+      }
+
+      // Adicionar itens da venda
+      const itemPromises = formData.items.map(async (item: any) => {
+        try {
           await addSaleItem({
             sale_id: newSale.id,
             product_id: parseInt(item.product_id),
@@ -113,8 +164,13 @@ export default function Sales() {
             unit_price: item.unit_price,
             subtotal: item.subtotal
           });
+        } catch (error) {
+          console.error(`Erro ao adicionar item ${item.product_id}:`, error);
+          throw error;
         }
-      }
+      });
+
+      await Promise.all(itemPromises);
       
       toast.success('Venda registrada com sucesso');
       setShowModal(false);
@@ -122,7 +178,7 @@ export default function Sales() {
       loadData();
     } catch (error) {
       console.error('Erro ao salvar venda:', error);
-      toast.error('Erro ao salvar venda');
+      toast.error('Erro ao salvar venda. Verifique os dados e tente novamente.');
     }
   };
 

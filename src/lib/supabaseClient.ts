@@ -10,7 +10,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 // Helper para lidar com erros com logs detalhados
-const handleError = (error: any, context: string) => {
+// Retorna true se houve erro, false caso contrário
+const handleError = (error: any, context: string): boolean => {
   if (error) {
     console.error(`[SUPABASE ERROR] em ${context}:`, {
       message: error.message,
@@ -22,6 +23,14 @@ const handleError = (error: any, context: string) => {
   }
   return false;
 };
+
+// Classe de erro customizada para erros do Supabase
+export class SupabaseError extends Error {
+  constructor(message: string, public code?: string, public details?: string, public hint?: string) {
+    super(message);
+    this.name = 'SupabaseError';
+  }
+}
 
 // ===== INGREDIENT CATEGORIES =====
 export async function getIngredientCategories() {
@@ -72,17 +81,33 @@ export async function deleteIngredient(id: number) {
 }
 
 // ===== RECEITAS (RECIPES) =====
+// Nota: Receitas são ingredientes processados (is_processed = true)
+// Para obter receitas completas com ficha técnica, usar getIngredients() filtrado + getTechnicalSheet()
 export async function getRecipes() {
+  // Buscar ingredientes processados (que são receitas)
   const { data, error } = await supabase
-    .from('recipes')
-    .select(`
-      *,
-      ingredient:ingredients(name, cost, unit),
-      component:ingredients(name, cost, unit)
-    `)
+    .from('ingredients')
+    .select('*')
+    .eq('is_processed', true)
     .order('created_at', { ascending: false });
+  
   if (handleError(error, 'getRecipes')) return [];
-  return data || [];
+  
+  // Para cada receita, buscar sua ficha técnica se existir
+  const recipesWithSheets = await Promise.all((data || []).map(async (recipe) => {
+    try {
+      const sheet = await getTechnicalSheet(recipe.id, 'RECIPE');
+      return {
+        ...recipe,
+        technical_sheet: sheet
+      };
+    } catch (error) {
+      // Se não houver ficha técnica, retorna receita sem ela
+      return recipe;
+    }
+  }));
+  
+  return recipesWithSheets;
 }
 
 export async function addRecipe(recipe: any) {
@@ -104,39 +129,48 @@ export async function deleteRecipe(id: number) {
 
 export async function saveFullRecipe(recipeData: any) {
   try {
-    let recipeId = recipeData.id;
+    const recipeId = recipeData.id;
     
     // 1. Salvar ou atualizar o item base (na tabela ingredients para receitas)
-    const ingredientPayload = {
+    const ingredientPayload: any = {
       name: recipeData.name,
-      cost: recipeData.prepCost, // Custo de preparo inicial
+      cost: recipeData.prepCost || 0, // Custo de preparo inicial
       unit: recipeData.yieldUnit,
-      current_stock: recipeData.yield,
-      is_processed: true,
-      item_type: 'RECIPE'
+      current_stock: recipeData.yield || 0,
+      is_processed: true
     };
 
-    if (recipeId && !isNaN(recipeId) && recipeId < 1) { // Novo item com ID temporário
-      const newIng = await addIngredient(ingredientPayload);
-      recipeId = newIng?.id;
-    } else if (recipeId) {
-      await updateIngredient(recipeId, ingredientPayload);
+    // Adicionar item_type apenas se a coluna existir (migration v2)
+    // A migration v2 adiciona essa coluna, mas para compatibilidade, vamos tentar
+    if (recipeData.item_type !== undefined) {
+      ingredientPayload.item_type = recipeData.item_type || 'RECIPE';
+    }
+
+    let finalRecipeId: number;
+    
+    // Se tem ID válido, atualiza; caso contrário, cria novo
+    if (recipeId && typeof recipeId === 'number' && recipeId > 0) {
+      const updated = await updateIngredient(recipeId, ingredientPayload);
+      finalRecipeId = updated?.id || recipeId;
     } else {
       const newIng = await addIngredient(ingredientPayload);
-      recipeId = newIng?.id;
+      if (!newIng?.id) {
+        throw new Error('Falha ao criar ingrediente/receita');
+      }
+      finalRecipeId = newIng.id;
     }
     
-    // 2. Salvar a ficha técnica
-    if (recipeId && recipeData.ingredients) {
+    // 2. Salvar a ficha técnica (apenas se ingredients foram fornecidos)
+    if (finalRecipeId && recipeData.ingredients && Array.isArray(recipeData.ingredients) && recipeData.ingredients.length > 0) {
       const sheetEntries = recipeData.ingredients.map((ing: any) => ({
         component_id: ing.ingredientId,
         quantity: ing.quantity,
         unit: ing.unit
       }));
-      await saveTechnicalSheet(recipeId, 'RECIPE', sheetEntries);
+      await saveTechnicalSheet(finalRecipeId, 'RECIPE', sheetEntries);
     }
     
-    return { id: recipeId };
+    return { id: finalRecipeId };
   } catch (error) {
     handleError(error, 'saveFullRecipe');
     throw error;

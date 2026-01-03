@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { TrendingUp, Package, ShoppingCart, AlertCircle, Cake, RefreshCw } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { getSales, getCustomers, getProducts, getIngredients, getDashboardMetrics } from '@/lib/supabaseClient';
+import { getSales, getCustomers, getProducts, getIngredients, getDashboardMetrics, getSaleItems } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -64,26 +64,31 @@ export default function Dashboard() {
       const chartData = Object.entries(salesByDate)
         .map(([date, amount]) => ({
           date,
-          sales: Math.round(amount / 100), // Converter de centavos
-          revenue: Math.round(amount / 100)
+          sales: Number(amount),
+          revenue: Number(amount)
         }))
         .slice(-7); // Últimos 7 dias
 
       setSalesData(chartData);
 
-      // Processar produtos mais vendidos
+      // Processar produtos mais vendidos - buscar items de cada venda
       const productSales: { [key: string]: { name: string; sales: number; revenue: number } } = {};
-      salesList?.forEach((sale: any) => {
-        if (sale.items) {
-          sale.items.forEach((item: any) => {
-            const key = item.product_id;
-            if (!productSales[key]) {
-              productSales[key] = { name: item.product?.name || 'Produto', sales: 0, revenue: 0 };
-            }
-            productSales[key].sales += item.quantity || 0;
-            productSales[key].revenue += item.subtotal || 0;
-          });
-        }
+      
+      // Buscar items de todas as vendas em paralelo (mais eficiente)
+      const saleItemsPromises = (salesList || []).map(sale => getSaleItems(sale.id));
+      const allSaleItemsResults = await Promise.all(saleItemsPromises);
+      
+      // Processar todos os items
+      allSaleItemsResults.forEach((saleItems, index) => {
+        saleItems.forEach((item: any) => {
+          const key = item.product_id;
+          const productName = item.product?.name || 'Produto';
+          if (!productSales[key]) {
+            productSales[key] = { name: productName, sales: 0, revenue: 0 };
+          }
+          productSales[key].sales += Number(item.quantity) || 0;
+          productSales[key].revenue += Number(item.subtotal) || 0;
+        });
       });
 
       const topProds = Object.values(productSales)
@@ -125,7 +130,7 @@ export default function Dashboard() {
           <div className="flex items-start justify-between">
             <div>
               <p className="metric-label">Receita Total</p>
-              <p className="metric-value">R$ {(metrics.totalRevenue / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              <p className="metric-value">R$ {metrics.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
             </div>
             <TrendingUp className="text-accent" size={24} />
           </div>
@@ -226,7 +231,7 @@ export default function Dashboard() {
                     <p className="font-medium text-foreground">{product.name}</p>
                     <p className="text-xs text-muted-foreground">{product.sales} unidades vendidas</p>
                   </div>
-                  <p className="font-bold text-accent">R$ {(product.revenue / 100).toFixed(2)}</p>
+                  <p className="font-bold text-accent">R$ {product.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                 </div>
               ))}
             </div>
