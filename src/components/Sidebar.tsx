@@ -94,10 +94,13 @@ export default function Sidebar({ currentPath }: SidebarProps) {
               try {
                 await signOut();
                 toast.success('Desconectado com sucesso');
-                setLocation('/login');
+                // Aguardar um pouco para garantir que o estado foi atualizado
+                setTimeout(() => {
+                  setLocation('/login');
+                }, 100);
               } catch (error: any) {
+                console.error('Erro ao desconectar:', error);
                 toast.error('Erro ao desconectar');
-              } finally {
                 setIsLoggingOut(false);
               }
             }}
