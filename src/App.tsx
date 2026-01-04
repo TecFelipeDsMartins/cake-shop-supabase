@@ -20,41 +20,54 @@ import Accounts from "./pages/Accounts";
 import Customers from "./pages/Customers";
 
 
-function Router() {
+function ProtectedLayout() {
   const [location] = useLocation();
+  
+  return (
+    <ProtectedRoute>
+      <div className="flex h-screen bg-background">
+        <Sidebar currentPath={location} />
+        
+        <main className="flex-1 overflow-auto lg:ml-0">
+          <div className="p-4 lg:p-8">
+            <Switch>
+              <Route path="/dashboard" component={Dashboard} />
+              <Route path="/ingredients" component={Ingredients} />
+              <Route path="/inventory" component={Inventory} />
+              <Route path="/sales" component={Sales} />
+              <Route path="/customers" component={Customers} />
+              <Route path="/finances" component={Finances} />
+              <Route path="/reports" component={Reports} />
+              <Route path="/accounts" component={Accounts} />
+              <Route path="/categories" component={Categories} />
+              <Route path="/recipes" component={Recipes} />
+              <Route path="/" component={Dashboard} />
+              <Route path="/404" component={NotFound} />
+              <Route component={NotFound} />
+            </Switch>
+          </div>
+        </main>
+      </div>
+    </ProtectedRoute>
+  );
+}
 
+function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
-      <Route path="/">
-        {() => (
-          <ProtectedRoute>
-            <div className="flex h-screen bg-background">
-              <Sidebar currentPath={location} />
-              
-              <main className="flex-1 overflow-auto lg:ml-0">
-                <div className="p-4 lg:p-8">
-                  <Switch>
-                    <Route path="/dashboard" component={Dashboard} />
-                    <Route path="/ingredients" component={Ingredients} />
-                    <Route path="/inventory" component={Inventory} />
-                    <Route path="/sales" component={Sales} />
-                    <Route path="/customers" component={Customers} />
-                    <Route path="/finances" component={Finances} />
-                    <Route path="/reports" component={Reports} />
-                    <Route path="/accounts" component={Accounts} />
-                    <Route path="/categories" component={Categories} />
-                    <Route path="/recipes" component={Recipes} />
-                    <Route path="/" component={Dashboard} />
-                    <Route path="/404" component={NotFound} />
-                    <Route component={NotFound} />
-                  </Switch>
-                </div>
-              </main>
-            </div>
-          </ProtectedRoute>
-        )}
-      </Route>
+      <Route path="/dashboard" component={ProtectedLayout} />
+      <Route path="/ingredients" component={ProtectedLayout} />
+      <Route path="/inventory" component={ProtectedLayout} />
+      <Route path="/sales" component={ProtectedLayout} />
+      <Route path="/customers" component={ProtectedLayout} />
+      <Route path="/finances" component={ProtectedLayout} />
+      <Route path="/reports" component={ProtectedLayout} />
+      <Route path="/accounts" component={ProtectedLayout} />
+      <Route path="/categories" component={ProtectedLayout} />
+      <Route path="/recipes" component={ProtectedLayout} />
+      <Route path="/" component={ProtectedLayout} />
+      <Route component={NotFound} />
     </Switch>
   );
 }
