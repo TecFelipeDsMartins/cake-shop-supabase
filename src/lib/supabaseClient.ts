@@ -9,6 +9,72 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
+// ===== WHITELIST VALIDATION =====
+export async function isEmailWhitelisted(email: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('whitelisted_emails')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .single();
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+      handleError(error, 'isEmailWhitelisted');
+      return false;
+    }
+    
+    return !!data;
+  } catch (error) {
+    console.error('Erro ao verificar whitelist:', error);
+    return false;
+  }
+}
+
+export async function addToWhitelist(email: string) {
+  try {
+    const { data, error } = await supabase
+      .from('whitelisted_emails')
+      .insert([{ email: email.toLowerCase() }])
+      .select();
+    
+    if (handleError(error, 'addToWhitelist')) return null;
+    return data?.[0];
+  } catch (error) {
+    console.error('Erro ao adicionar email à whitelist:', error);
+    return null;
+  }
+}
+
+export async function removeFromWhitelist(email: string) {
+  try {
+    const { error } = await supabase
+      .from('whitelisted_emails')
+      .delete()
+      .eq('email', email.toLowerCase());
+    
+    if (handleError(error, 'removeFromWhitelist')) return false;
+    return true;
+  } catch (error) {
+    console.error('Erro ao remover email da whitelist:', error);
+    return false;
+  }
+}
+
+export async function getAllWhitelistedEmails() {
+  try {
+    const { data, error } = await supabase
+      .from('whitelisted_emails')
+      .select('email')
+      .order('email');
+    
+    if (handleError(error, 'getAllWhitelistedEmails')) return [];
+    return data?.map(row => row.email) || [];
+  } catch (error) {
+    console.error('Erro ao obter whitelist:', error);
+    return [];
+  }
+}
+
 // Helper para lidar com erros com logs detalhados
 // Retorna true se houve erro, false caso contrário
 const handleError = (error: any, context: string): boolean => {

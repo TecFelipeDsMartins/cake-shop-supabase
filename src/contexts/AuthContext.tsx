@@ -1,6 +1,6 @@
 import { createContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, isEmailWhitelisted } from '@/lib/supabaseClient';
 
 interface AuthContextType {
   user: User | null;
@@ -45,6 +45,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string) => {
     try {
       setError(null);
+      
+      // Validar se email está na whitelist
+      const isWhitelisted = await isEmailWhitelisted(email);
+      if (!isWhitelisted) {
+        const message = 'Este email não está autorizado para se registrar. Entre em contato com o administrador.';
+        setError(message);
+        throw new Error(message);
+      }
+      
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
     } catch (err: any) {

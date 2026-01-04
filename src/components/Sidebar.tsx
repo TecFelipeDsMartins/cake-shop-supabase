@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Menu, X, BarChart3, Package, ShoppingCart, DollarSign, FileText, LogOut, Leaf, Tag, BookOpen, Wallet, Users } from 'lucide-react';
+import { Menu, X, BarChart3, Package, ShoppingCart, DollarSign, FileText, LogOut, Leaf, Tag, BookOpen, Wallet, Users, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -38,6 +38,7 @@ export default function Sidebar({ currentPath }: SidebarProps) {
     { path: '/reports', label: 'Relatórios', icon: FileText },
     { path: '/accounts', label: 'Contas', icon: Wallet },
     { path: '/categories', label: 'Categorias', icon: Tag },
+    { path: '/whitelist', label: 'Whitelist', icon: Lock },
   ];
 
   return (

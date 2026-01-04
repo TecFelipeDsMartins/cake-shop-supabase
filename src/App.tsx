@@ -18,6 +18,7 @@ import Categories from "./pages/Categories";
 import Recipes from "./pages/Recipes";
 import Accounts from "./pages/Accounts";
 import Customers from "./pages/Customers";
+import Whitelist from "./pages/Whitelist";
 
 
 function ProtectedLayout() {
@@ -41,6 +42,7 @@ function ProtectedLayout() {
               <Route path="/accounts" component={Accounts} />
               <Route path="/categories" component={Categories} />
               <Route path="/recipes" component={Recipes} />
+              <Route path="/whitelist" component={Whitelist} />
               <Route path="/" component={Dashboard} />
               <Route path="/404" component={NotFound} />
               <Route component={NotFound} />
@@ -66,6 +68,7 @@ function Router() {
       <Route path="/accounts" component={ProtectedLayout} />
       <Route path="/categories" component={ProtectedLayout} />
       <Route path="/recipes" component={ProtectedLayout} />
+      <Route path="/whitelist" component={ProtectedLayout} />
       <Route path="/" component={ProtectedLayout} />
       <Route component={NotFound} />
     </Switch>
