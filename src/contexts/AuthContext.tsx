@@ -67,17 +67,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       setError(null);
-      const { error } = await supabase.auth.signOut({ scope: 'local' });
-      if (error) throw error;
-      // Limpar o estado localmente para garantir que a redireção funcione
+      
+      // Limpar o estado localmente ANTES de chamar signOut
       setSession(null);
       setUser(null);
-      // Limpar qualquer dado de sessão do Supabase do localStorage
-      localStorage.removeItem('sb-auth-token');
-      localStorage.removeItem('supabase.auth.token');
+      
+      // Limpar todos os dados de sessão do localStorage
+      const keysToRemove = [
+        'sb-auth-token',
+        'supabase.auth.token',
+        'supabase.auth.token.cache',
+        'SUPABASE_ANON_KEY',
+        'SUPABASE_URL'
+      ];
+      
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+      });
+      
+      // Limpar sessionStorage também
+      sessionStorage.clear();
+      
+      // Fazer logout no Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Erro ao fazer logout no Supabase:', error);
+        // Continuar mesmo se houver erro, pois já limpamos localmente
+      }
     } catch (err: any) {
+      console.error('Erro no signOut:', err);
       setError(err.message);
-      throw err;
+      // Não relançar erro para permitir que a redireção aconteça
     }
   };
 

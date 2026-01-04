@@ -18,8 +18,12 @@ export default function Sidebar({ currentPath }: SidebarProps) {
   // Redirecionar quando o usuário fica null (logout completo)
   useEffect(() => {
     if (isLoggingOut && !user) {
-      setLocation('/login');
-      setIsLoggingOut(false);
+      // Pequena pausa para garantir que o estado foi atualizado
+      const timer = setTimeout(() => {
+        setLocation('/login');
+        setIsLoggingOut(false);
+      }, 50);
+      return () => clearTimeout(timer);
     }
   }, [user, isLoggingOut, setLocation]);
 
