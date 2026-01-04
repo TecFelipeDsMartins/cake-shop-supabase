@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Calculator, X } from 'lucide-react';
 import { Recipe, RecipeIngredient, IngredientType } from '@/lib/types';
-import { updateRecipeIngredientsCosts, detectCycles } from '@/lib/recipeUtils';
+import { detectCycles } from '@/lib/recipeUtils';
 
 interface Ingredient {
   id?: number;
@@ -52,7 +52,7 @@ export default function RecipeEditorModal({
       updatedAt: new Date().toISOString(),
     }
   );
-  // Atualizar formData quando recipe mudar
+  // Atualizar formData quando recipe mudar (apenas no início)
   useEffect(() => {
     if (recipe) {
       setFormData({
@@ -60,7 +60,7 @@ export default function RecipeEditorModal({
         ingredients: recipe.ingredients || [],
       });
     }
-  }, [recipe]);
+  }, []);
   const [newIngredient, setNewIngredient] = useState<Partial<RecipeIngredient>>({
     quantity: 1,
     unit: 'g',
@@ -147,8 +147,7 @@ export default function RecipeEditorModal({
       }
     }
 
-    const updatedRecipe = updateRecipeIngredientsCosts(formData);
-    onSave(updatedRecipe);
+    onSave(formData);
   };
 
   const typeLabels: Record<IngredientType, string> = {
@@ -372,25 +371,38 @@ export default function RecipeEditorModal({
             </div>
 
             {/* Resumo de Custos */}
-            <div className="bg-muted/30 p-5 rounded-xl border border-border space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Soma dos Ingredientes:</span>
-                <span className="font-semibold">R$ {formData.ingredients.reduce((sum, i) => sum + i.totalCost, 0).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Custo de Preparo:</span>
-                <span className="font-semibold">R$ {formData.prepCost.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center border-t border-border pt-3">
-                <span className="font-bold text-lg">Custo Total da Receita:</span>
-                <span className="text-2xl font-black text-accent">
-                  R$ {(formData.ingredients.reduce((sum, i) => sum + i.totalCost, 0) + formData.prepCost).toFixed(2)}
-                </span>
-              </div>
-              <div className="text-xs text-right text-muted-foreground italic">
-                Custo unitário estimado: R$ {((formData.ingredients.reduce((sum, i) => sum + i.totalCost, 0) + formData.prepCost) / (formData.yield || 1)).toFixed(2)} por {formData.yieldUnit}
-              </div>
-            </div>
+             <div className="bg-muted/30 p-5 rounded-xl border border-border space-y-3">
+               {(() => {
+                 const ingredientsCost = formData.ingredients.reduce((sum, i) => sum + i.totalCost, 0);
+                 const totalCost = ingredientsCost + formData.prepCost;
+                 const costPerUnit = totalCost / (formData.yield || 1);
+                 console.log('Ingredientes:', formData.ingredients);
+                 console.log('Custo ingredientes:', ingredientsCost);
+                 console.log('Custo preparo:', formData.prepCost);
+                 console.log('Total:', totalCost);
+                 return (
+                   <>
+                     <div className="flex justify-between text-sm">
+                       <span className="text-muted-foreground">Soma dos Ingredientes:</span>
+                       <span className="font-semibold">R$ {ingredientsCost.toFixed(2)}</span>
+                     </div>
+                     <div className="flex justify-between text-sm">
+                       <span className="text-muted-foreground">Custo de Preparo:</span>
+                       <span className="font-semibold">R$ {formData.prepCost.toFixed(2)}</span>
+                     </div>
+                     <div className="flex justify-between items-center border-t border-border pt-3">
+                       <span className="font-bold text-lg">Custo Total da Receita:</span>
+                       <span className="text-2xl font-black text-accent">
+                         R$ {totalCost.toFixed(2)}
+                       </span>
+                     </div>
+                     <div className="text-xs text-right text-muted-foreground italic">
+                       Custo unitário estimado: R$ {costPerUnit.toFixed(2)} por {formData.yieldUnit}
+                     </div>
+                   </>
+                 );
+               })()}
+             </div>
 
             <div className="flex gap-3 justify-end pt-4 border-t border-border">
               <Button variant="outline" onClick={onClose} className="px-6 py-2 font-semibold">Cancelar</Button>

@@ -202,7 +202,7 @@ export async function saveFullRecipe(recipeData: any) {
     // 1. Salvar ou atualizar o item base (na tabela ingredients para receitas)
     const ingredientPayload: any = {
       name: recipeData.name,
-      cost: recipeData.totalCost || 0, // Usar o custo total em vez do custo de preparo
+      cost: recipeData.prepCost || 0, // Salvar apenas o custo de preparo, não o total
       unit: recipeData.yieldUnit,
       current_stock: recipeData.yield || 0,
       is_processed: true
