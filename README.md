@@ -178,16 +178,33 @@ O sistema utiliza um design **Warm Minimalism** com:
 - Chave pública (anon) usada apenas no frontend
 - Sem exposição de dados sensíveis
 
+## 🔐 Autenticação e Segurança
+
+### ✅ Implementado (v3.0)
+- [x] Autenticação com Supabase Auth (email/password)
+- [x] Signup (cadastro de novo usuário)
+- [x] Signin (login com credenciais)
+- [x] Signout (logout)
+- [x] RLS (Row Level Security) no banco de dados
+- [x] Isolamento de dados por usuário
+- [x] Proteção de rotas privadas
+
+### Para configurar:
+1. Execute `supabase_migration_v3_auth.sql` no Supabase
+2. Veja [SETUP_AUTH_NOW.md](./SETUP_AUTH_NOW.md) para instruções rápidas
+3. Veja [AUTH_COMPLETE.md](./AUTH_COMPLETE.md) para documentação completa
+
 ## 📱 Funcionalidades Futuras
 
-- [ ] Autenticação de usuários
-- [ ] Múltiplos usuários/permissões
 - [ ] Integração com sistemas de pagamento
 - [ ] Notificações de estoque baixo
 - [ ] Backup automático de dados
 - [ ] Aplicativo mobile (React Native)
 - [ ] API REST completa
 - [ ] Integração com WhatsApp/Email
+- [ ] OAuth (Google, GitHub)
+- [ ] 2FA (Two-Factor Authentication)
+- [ ] Múltiplos workspaces/empresas
 
 ## 🤝 Contribuindo
 

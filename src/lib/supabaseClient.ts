@@ -40,7 +40,9 @@ export async function getIngredientCategories() {
 }
 
 export async function addIngredientCategory(category: any) {
-  const { data, error } = await supabase.from('ingredient_categories').insert([category]).select();
+  const { data: { user } } = await supabase.auth.getUser();
+  const payload = { ...category, user_id: user?.id };
+  const { data, error } = await supabase.from('ingredient_categories').insert([payload]).select();
   handleError(error, 'addIngredientCategory');
   return data?.[0];
 }
@@ -64,7 +66,9 @@ export async function getIngredients() {
 }
 
 export async function addIngredient(ingredient: any) {
-  const { data, error } = await supabase.from('ingredients').insert([ingredient]).select();
+  const { data: { user } } = await supabase.auth.getUser();
+  const payload = { ...ingredient, user_id: user?.id };
+  const { data, error } = await supabase.from('ingredients').insert([payload]).select();
   handleError(error, 'addIngredient');
   return data?.[0];
 }
@@ -178,7 +182,9 @@ export async function getRecipes() {
 }
 
 export async function addRecipe(recipe: any) {
-  const { data, error } = await supabase.from('recipes').insert([recipe]).select();
+  const { data: { user } } = await supabase.auth.getUser();
+  const payload = { ...recipe, user_id: user?.id };
+  const { data, error } = await supabase.from('recipes').insert([payload]).select();
   handleError(error, 'addRecipe');
   return data?.[0];
 }
@@ -197,6 +203,7 @@ export async function deleteRecipe(id: number) {
 export async function saveFullRecipe(recipeData: any) {
   console.log('saveFullRecipe recipeData.totalCost:', recipeData.totalCost);
   try {
+    const { data: { user } } = await supabase.auth.getUser();
     const recipeId = recipeData.id;
     
     // 1. Salvar ou atualizar o item base (na tabela ingredients para receitas)
@@ -205,7 +212,8 @@ export async function saveFullRecipe(recipeData: any) {
       cost: recipeData.prepCost || 0, // Salvar apenas o custo de preparo, não o total
       unit: recipeData.yieldUnit,
       current_stock: recipeData.yield || 0,
-      is_processed: true
+      is_processed: true,
+      user_id: user?.id
     };
 
     // Adicionar item_type apenas se a coluna existir (migration v2)
@@ -221,11 +229,21 @@ export async function saveFullRecipe(recipeData: any) {
       const updated = await updateIngredient(recipeId, ingredientPayload);
       finalRecipeId = updated?.id || recipeId;
     } else {
-      const newIng = await addIngredient(ingredientPayload);
-      if (!newIng?.id) {
+      // Usar insert direto para preservar user_id em nova receita
+      const { data: newData, error: newError } = await supabase
+        .from('ingredients')
+        .insert([ingredientPayload])
+        .select();
+      
+      if (newError) {
+        handleError(newError, 'saveFullRecipe - insert');
+        throw newError;
+      }
+      
+      if (!newData?.[0]?.id) {
         throw new Error('Falha ao criar ingrediente/receita');
       }
-      finalRecipeId = newIng.id;
+      finalRecipeId = newData[0].id;
     }
     
     // 2. Salvar a ficha técnica (apenas se ingredients foram fornecidos)
@@ -233,7 +251,8 @@ export async function saveFullRecipe(recipeData: any) {
       const sheetEntries = recipeData.ingredients.map((ing: any) => ({
         component_id: ing.ingredientId,
         quantity: ing.quantity,
-        unit: ing.unit
+        unit: ing.unit,
+        user_id: user?.id
       }));
       await saveTechnicalSheet(finalRecipeId, 'RECIPE', sheetEntries);
     }
@@ -253,7 +272,9 @@ export async function getProductCategories() {
 }
 
 export async function addProductCategory(category: any) {
-  const { data, error } = await supabase.from('product_categories').insert([category]).select();
+  const { data: { user } } = await supabase.auth.getUser();
+  const payload = { ...category, user_id: user?.id };
+  const { data, error } = await supabase.from('product_categories').insert([payload]).select();
   handleError(error, 'addProductCategory');
   return data?.[0];
 }
@@ -348,7 +369,9 @@ export async function getProductsWithIngredients() {
 }
 
 export async function addProduct(product: any) {
-  const { data, error } = await supabase.from('products').insert([product]).select();
+  const { data: { user } } = await supabase.auth.getUser();
+  const payload = { ...product, user_id: user?.id };
+  const { data, error } = await supabase.from('products').insert([payload]).select();
   handleError(error, 'addProduct');
   return data?.[0];
 }
@@ -412,7 +435,9 @@ export async function getCustomers() {
 }
 
 export async function addCustomer(customer: any) {
-  const { data, error } = await supabase.from('customers').insert([customer]).select();
+  const { data: { user } } = await supabase.auth.getUser();
+  const payload = { ...customer, user_id: user?.id };
+  const { data, error } = await supabase.from('customers').insert([payload]).select();
   handleError(error, 'addCustomer');
   return data?.[0];
 }
@@ -544,7 +569,9 @@ export async function getSales() {
 }
 
 export async function addSale(sale: any) {
-  const { data, error } = await supabase.from('sales').insert([sale]).select();
+  const { data: { user } } = await supabase.auth.getUser();
+  const payload = { ...sale, user_id: user?.id };
+  const { data, error } = await supabase.from('sales').insert([payload]).select();
   handleError(error, 'addSale');
   return data?.[0];
 }
@@ -691,6 +718,8 @@ export async function getTechnicalSheet(parentId: number, parentType: string) {
 
 export async function saveTechnicalSheet(parentId: number, parentType: string, entries: any[]) {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     // 1. Remover entradas antigas
     const { error: deleteError } = await supabase
       .from('technical_sheets')
@@ -707,7 +736,8 @@ export async function saveTechnicalSheet(parentId: number, parentType: string, e
         parent_type: parentType,
         component_id: entry.component_id,
         quantity: entry.quantity,
-        unit: entry.unit
+        unit: entry.unit,
+        user_id: entry.user_id || user?.id
       }));
 
       const { error: insertError } = await supabase

@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { Menu, X, BarChart3, Package, ShoppingCart, DollarSign, FileText, LogOut, Leaf, Tag, BookOpen, Wallet, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 interface SidebarProps {
   currentPath: string;
@@ -9,6 +11,9 @@ interface SidebarProps {
 
 export default function Sidebar({ currentPath }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [, setLocation] = useLocation();
+  const { signOut } = useAuth();
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -83,13 +88,22 @@ export default function Sidebar({ currentPath }: SidebarProps) {
           <Button
             variant="outline"
             className="w-full flex items-center gap-2"
-            onClick={() => {
-              // TODO: Implement logout
-              console.log('Logout');
+            disabled={isLoggingOut}
+            onClick={async () => {
+              setIsLoggingOut(true);
+              try {
+                await signOut();
+                toast.success('Desconectado com sucesso');
+                setLocation('/login');
+              } catch (error: any) {
+                toast.error('Erro ao desconectar');
+              } finally {
+                setIsLoggingOut(false);
+              }
             }}
           >
             <LogOut size={18} />
-            Sair
+            {isLoggingOut ? 'Saindo...' : 'Sair'}
           </Button>
         </div>
       </aside>
