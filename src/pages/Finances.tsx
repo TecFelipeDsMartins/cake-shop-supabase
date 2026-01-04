@@ -240,7 +240,7 @@ export default function Finances() {
                     onChange={e => setFormData({...formData, category_id: e.target.value ? parseInt(e.target.value) : null})}
                 >
                   <option value="">Selecione uma categoria</option>
-                  {categories.filter(c => c.type === formData.type).map(c => (
+                  {categories.filter(c => !c.type || c.type === formData.type).map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>

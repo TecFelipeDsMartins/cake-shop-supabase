@@ -101,7 +101,8 @@ export default function Inventory() {
       ingredient_name: newIngredient.name,
       quantity: newIngredient.quantity,
       unit: newIngredient.unit,
-      cost: newIngredient.costPerUnit * newIngredient.quantity,
+      cost: newIngredient.costPerUnit,
+      total_cost: newIngredient.costPerUnit * newIngredient.quantity,
       is_processed: newIngredient.is_processed,
     };
 
@@ -109,7 +110,7 @@ export default function Inventory() {
     setFormData({
       ...formData,
       ingredients: updatedIngredients,
-      production_cost: updatedIngredients.reduce((sum, ing) => sum + ing.cost, 0),
+      production_cost: updatedIngredients.reduce((sum, ing) => sum + ing.total_cost, 0),
     });
     setNewIngredient({ id: '', quantity: 1, unit: 'g', costPerUnit: 0, name: '', is_processed: false });
   }
@@ -177,8 +178,18 @@ export default function Inventory() {
             <div className="space-y-4">
               <input type="text" placeholder="Nome" className="w-full p-2 border rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
               <div className="grid grid-cols-2 gap-4">
-                <input type="number" placeholder="Preço" className="p-2 border rounded" value={formData.price} onChange={e => setFormData({...formData, price: parseFloat(e.target.value) || 0})} />
-                <div className="p-2 bg-muted rounded font-bold">Custo: R$ {formData.production_cost.toFixed(2)}</div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Preço</label>
+                  <div className="flex">
+                    <span className="inline-flex items-center px-3 bg-gray-200 border border-r-0 rounded-l text-sm">R$</span>
+                    <input type="number" placeholder="0.00" className="flex-1 p-2 border rounded-r" value={formData.price} onChange={e => setFormData({...formData, price: parseFloat(e.target.value) || 0})} />
+                  </div>
+                </div>
+                <div className="p-2 bg-muted rounded font-bold flex items-center">Custo: R$ {formData.production_cost.toFixed(2)}</div>
+              </div>
+
+              <div className="p-2 bg-green-100 rounded font-bold text-green-800">
+                Margem de Lucro: {formData.price > 0 ? ((formData.price - formData.production_cost) / formData.price * 100).toFixed(2) : 0}%
               </div>
 
               <div className="border p-4 rounded bg-accent/5">
@@ -225,17 +236,24 @@ export default function Inventory() {
 
               <div className="max-h-40 overflow-y-auto space-y-2">
                 {formData.ingredients?.map((ing: any, idx: number) => (
-                  <div key={idx} className="flex justify-between p-2 bg-muted rounded text-sm">
-                    <span>{ing.ingredient_name} ({ing.quantity}{ing.unit})</span>
-                    <div className="flex gap-2 items-center">
-                      <span className="font-bold">R$ {ing.cost.toFixed(2)}</span>
-                      <button onClick={() => {
-                        const ings = formData.ingredients.filter((_: any, i: number) => i !== idx);
-                        setFormData({...formData, ingredients: ings, production_cost: ings.reduce((s: any, n: any) => s + n.cost, 0)});
-                      }} className="text-red-500"><Trash2 size={14} /></button>
-                    </div>
-                  </div>
-                ))}
+                   <div key={idx} className="flex justify-between p-2 bg-muted rounded text-sm">
+                     <span>{ing.ingredient_name} ({ing.quantity}{ing.unit})</span>
+                     <div className="flex gap-2 items-center">
+                       <span className="font-bold">R$ {ing.cost.toFixed(2)}</span>
+                       <Button 
+                         variant="ghost" 
+                         size="sm"
+                         className="text-red-500"
+                         onClick={() => {
+                           const ings = formData.ingredients.filter((_: any, i: number) => i !== idx);
+                           setFormData({...formData, ingredients: ings, production_cost: ings.reduce((s: any, n: any) => s + n.total_cost, 0)});
+                         }}
+                       >
+                         <Trash2 size={14} />
+                       </Button>
+                     </div>
+                   </div>
+                 ))}
               </div>
             </div>
 

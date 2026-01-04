@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getSales, getSaleItems } from '@/lib/supabaseClient';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
@@ -13,56 +14,114 @@ interface ProductPerformance {
 }
 
 export default function Reports() {
-  const [period, setPeriod] = useState('month');
-  const [dateRange, setDateRange] = useState({ start: '2024-01-01', end: '2024-06-30' });
+   const [period, setPeriod] = useState('month');
+   const [dateRange, setDateRange] = useState({ start: '2024-01-01', end: '2024-06-30' });
+   const [monthlyData, setMonthlyData] = useState<any[]>([]);
+   const [productPerformance, setProductPerformance] = useState<ProductPerformance[]>([]);
+   const [categoryPerformance, setCategoryPerformance] = useState<any[]>([]);
+   const [loading, setLoading] = useState(true);
 
-  const monthlyData = [
-    { month: 'Jan', revenue: 8500, expenses: 4200, profit: 4300, units: 145 },
-    { month: 'Fev', revenue: 9200, expenses: 4500, profit: 4700, units: 162 },
-    { month: 'Mar', revenue: 10100, expenses: 4800, profit: 5300, units: 178 },
-    { month: 'Abr', revenue: 11500, expenses: 5200, profit: 6300, units: 195 },
-    { month: 'Mai', revenue: 12000, expenses: 5500, profit: 6500, units: 210 },
-    { month: 'Jun', revenue: 12500, expenses: 5800, profit: 6700, units: 225 },
-  ];
+   useEffect(() => {
+     loadData();
+   }, []);
 
-  const productPerformance: ProductPerformance[] = [
-    { product: 'Bolo de Chocolate', sales: 156, revenue: 13260, margin: 45, trend: 8 },
-    { product: 'Cupcakes', sales: 234, revenue: 8190, margin: 52, trend: 12 },
-    { product: 'Pão de Forma', sales: 189, revenue: 2268, margin: 38, trend: -3 },
-    { product: 'Croissant', sales: 145, revenue: 7975, margin: 48, trend: 5 },
-    { product: 'Bolo de Cenoura', sales: 98, revenue: 7350, margin: 42, trend: -1 },
-  ];
+   async function loadData() {
+     setLoading(true);
+     try {
+       const sales = await getSales();
+       
+       // Processar dados por mês
+       const monthlyMap: { [key: string]: any } = {};
+       for (const sale of sales || []) {
+         const date = new Date(sale.sale_date);
+         const monthKey = `${date.getMonth() + 1}`.padStart(2, '0');
+         const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short' });
+         
+         if (!monthlyMap[monthKey]) {
+           monthlyMap[monthKey] = { month: monthLabel, revenue: 0, expenses: 0, profit: 0, units: 0 };
+         }
+         monthlyMap[monthKey].revenue += sale.total_amount || 0;
+         monthlyMap[monthKey].profit += (sale.total_amount || 0) * 0.4;
+       }
+       const computed = Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month));
+       setMonthlyData(computed);
 
-  const categoryPerformance = [
-    { name: 'Bolos', value: 20680, units: 254 },
-    { name: 'Cupcakes', value: 8190, units: 234 },
-    { name: 'Pães', value: 2268, units: 189 },
-    { name: 'Croissants', value: 7975, units: 145 },
-  ];
+       // Processar produtos mais vendidos
+       const productMap: { [key: string]: any } = {};
+       const saleItemsPromises = (sales || []).map(sale => getSaleItems(sale.id));
+       const allItems = await Promise.all(saleItemsPromises);
+       
+       allItems.forEach(items => {
+         items.forEach((item: any) => {
+           const key = item.product_id;
+           if (!productMap[key]) {
+             productMap[key] = { product: item.product?.name || 'Produto', sales: 0, revenue: 0, margin: 40, trend: 0 };
+           }
+           productMap[key].sales += item.quantity;
+           productMap[key].revenue += item.subtotal || 0;
+         });
+       });
+       
+       const topProds = Object.values(productMap)
+         .sort((a: any, b: any) => b.revenue - a.revenue)
+         .slice(0, 5);
+       setProductPerformance(topProds);
 
-  const totalRevenue = monthlyData.reduce((sum, m) => sum + m.revenue, 0);
-  const totalExpenses = monthlyData.reduce((sum, m) => sum + m.expenses, 0);
-  const totalProfit = monthlyData.reduce((sum, m) => sum + m.profit, 0);
-  const totalUnits = monthlyData.reduce((sum, m) => sum + m.units, 0);
-  const avgMargin = ((totalProfit / totalRevenue) * 100).toFixed(1);
+       // Categorias (simplificado)
+       const categoryMap: { [key: string]: any } = {};
+       allItems.forEach(items => {
+         items.forEach((item: any) => {
+           const categoryName = item.product?.name?.split(' ')[0] || 'Outros';
+           if (!categoryMap[categoryName]) {
+             categoryMap[categoryName] = { name: categoryName, value: 0, units: 0 };
+           }
+           categoryMap[categoryName].value += item.subtotal || 0;
+           categoryMap[categoryName].units += item.quantity;
+         });
+       });
+       setCategoryPerformance(Object.values(categoryMap).slice(0, 4));
+     } catch (error) {
+       console.error('Erro ao carregar relatórios:', error);
+     }
+     setLoading(false);
+   }
 
-  const topProduct = productPerformance.reduce((prev, current) => 
+  const totalRevenue = monthlyData.length > 0 ? monthlyData.reduce((sum, m) => sum + m.revenue, 0) : 0;
+  const totalExpenses = monthlyData.length > 0 ? monthlyData.reduce((sum, m) => sum + m.expenses, 0) : 0;
+  const totalProfit = monthlyData.length > 0 ? monthlyData.reduce((sum, m) => sum + m.profit, 0) : 0;
+  const totalUnits = monthlyData.length > 0 ? monthlyData.reduce((sum, m) => sum + m.units, 0) : 0;
+  const avgMargin = totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(1) : '0';
+
+  const topProduct = productPerformance.length > 0 ? productPerformance.reduce((prev, current) => 
     prev.revenue > current.revenue ? prev : current
-  );
+  ) : { product: 'N/A', sales: 0, revenue: 0, margin: 0, trend: 0 };
 
   const COLORS = ['#D4A574', '#8B6F47', '#C19A6B', '#A0826D'];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Carregando relatórios...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">Relatórios</h1>
-          <p className="text-muted-foreground">Análise detalhada de desempenho e tendências</p>
-        </div>
-        <Button className="flex items-center gap-2 bg-accent hover:bg-accent/90">
-          <Download size={18} />
-          Exportar PDF
-        </Button>
+            <h1 className="text-4xl font-bold text-foreground mb-2">Relatórios</h1>
+            <p className="text-muted-foreground">Análise detalhada de desempenho e tendências</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={loadData}>
+              Atualizar
+            </Button>
+            <Button className="flex items-center gap-2 bg-accent hover:bg-accent/90">
+              <Download size={18} />
+              Exportar PDF
+            </Button>
+          </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">

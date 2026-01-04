@@ -1,60 +1,71 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Trash2, Phone, Mail, MapPin, User, Cake } from 'lucide-react';
-import { getCustomers, addCustomer, updateCustomer, deleteCustomer } from '@/lib/supabaseClient';
+import { Plus, Edit2, Trash2, Phone, Mail, MapPin, User, Cake, RefreshCw } from 'lucide-react';
+import { getCustomers, addCustomer, updateCustomer, deleteCustomer, getCustomerOrigins } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
 interface Customer {
-  id?: number;
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zip_code?: string;
-  birth_date?: string;
-  notes?: string;
-  created_at?: string;
-  total_purchases?: number;
-  last_purchase_date?: string;
-}
+   id?: number;
+   name: string;
+   email?: string;
+   phone?: string;
+   address?: string;
+   city?: string;
+   state?: string;
+   zip_code?: string;
+   birth_date?: string;
+   notes?: string;
+   origin_id?: number | null;
+   created_at?: string;
+   total_purchases?: number;
+   last_purchase_date?: string;
+ }
 
 export default function Customers() {
-  const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [formData, setFormData] = useState<Customer>({
-    name: '',
-    email: '',
-    phone: '',
-    address: '',
-    city: '',
-    state: '',
-    zip_code: '',
-    birth_date: '',
-    notes: '',
-  });
+   const [showModal, setShowModal] = useState(false);
+   const [editingId, setEditingId] = useState<number | null>(null);
+   const [searchTerm, setSearchTerm] = useState('');
+   const [customers, setCustomers] = useState<Customer[]>([]);
+   const [origins, setOrigins] = useState<any[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [formData, setFormData] = useState<Customer>({
+     name: '',
+     email: '',
+     phone: '',
+     address: '',
+     city: '',
+     state: '',
+     zip_code: '',
+     birth_date: '',
+     notes: '',
+     origin_id: null,
+   });
 
-  // Carregar clientes do Supabase
-  useEffect(() => {
-    loadCustomers();
-  }, []);
+   // Carregar clientes e origens do Supabase
+   useEffect(() => {
+     loadData();
+   }, []);
 
-  async function loadCustomers() {
-    setLoading(true);
-    try {
-      const data = await getCustomers();
-      setCustomers(data);
-    } catch (error) {
-      console.error('Erro ao carregar clientes:', error);
-      toast.error('Erro ao carregar clientes');
-    }
-    setLoading(false);
-  }
+   async function loadData() {
+     setLoading(true);
+     try {
+       const [customersData, originsData] = await Promise.all([
+         getCustomers(),
+         getCustomerOrigins()
+       ]);
+       setCustomers(customersData);
+       setOrigins(originsData || []);
+     } catch (error) {
+       console.error('Erro ao carregar dados:', error);
+       toast.error('Erro ao carregar clientes');
+     }
+     setLoading(false);
+   }
+
+   async function loadCustomers() {
+     await loadData();
+   }
 
   function handleOpenModal(customer?: Customer) {
     if (customer) {
@@ -138,10 +149,15 @@ export default function Customers() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-foreground">Clientes</h1>
-        <Button onClick={() => handleOpenModal()} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Novo Cliente
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={loadData}>
+            <RefreshCw size={18} />
+          </Button>
+          <Button onClick={() => handleOpenModal()} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Novo Cliente
+          </Button>
+        </div>
       </div>
 
       {/* Aniversariantes do Mês */}
@@ -156,8 +172,8 @@ export default function Customers() {
               <div key={customer.id} className="bg-white rounded-lg p-3 border border-amber-100">
                 <p className="font-medium text-foreground">{customer.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {customer.birth_date && new Date(customer.birth_date).toLocaleDateString('pt-BR')}
-                </p>
+                   {customer.birth_date && new Date(customer.birth_date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                 </p>
               </div>
             ))}
           </div>
@@ -226,10 +242,10 @@ export default function Customers() {
                 )}
 
                 {customer.birth_date && (
-                  <div className="text-xs text-muted-foreground">
-                    Aniversário: {new Date(customer.birth_date).toLocaleDateString('pt-BR')}
-                  </div>
-                )}
+                   <div className="text-xs text-muted-foreground">
+                     Aniversário: {new Date(customer.birth_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                   </div>
+                 )}
 
                 {customer.notes && (
                   <div className="text-xs bg-muted p-2 rounded text-foreground">
@@ -320,6 +336,17 @@ export default function Customers() {
                 onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
                 className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
               />
+
+              <select
+                value={formData.origin_id ? String(formData.origin_id) : ''}
+                onChange={(e) => setFormData({ ...formData, origin_id: e.target.value ? parseInt(e.target.value) : null })}
+                className="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+              >
+                <option value="">Selecione uma origem...</option>
+                {origins.map(origin => (
+                  <option key={origin.id} value={origin.id}>{origin.name}</option>
+                ))}
+              </select>
 
               <textarea
                 placeholder="Notas"

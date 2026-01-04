@@ -3,23 +3,25 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Edit2, Trash2, Tag, RefreshCw } from 'lucide-react';
 import { 
-  getIngredientCategories, addIngredientCategory, updateIngredientCategory, deleteIngredientCategory,
-  getProductCategories, addProductCategory, updateProductCategory, deleteProductCategory,
-  getPaymentMethods, addPaymentMethod, updatePaymentMethod, deletePaymentMethod,
-  getTransactionCategories, addTransactionCategory, updateTransactionCategory, deleteTransactionCategory
-} from '@/lib/supabaseClient';
+   getIngredientCategories, addIngredientCategory, updateIngredientCategory, deleteIngredientCategory,
+   getProductCategories, addProductCategory, updateProductCategory, deleteProductCategory,
+   getPaymentMethods, addPaymentMethod, updatePaymentMethod, deletePaymentMethod,
+   getTransactionCategories, addTransactionCategory, updateTransactionCategory, deleteTransactionCategory,
+   getCustomerOrigins, addCustomerOrigin, updateCustomerOrigin, deleteCustomerOrigin
+ } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
 export default function Categories() {
-  const [activeTab, setActiveTab] = useState<'ingredients' | 'products' | 'payment' | 'transaction'>('ingredients');
-  const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+   const [activeTab, setActiveTab] = useState<'ingredients' | 'products' | 'payment' | 'transaction' | 'origin'>('ingredients');
+   const [showModal, setShowModal] = useState(false);
+   const [editingId, setEditingId] = useState<number | null>(null);
+   const [loading, setLoading] = useState(true);
 
-  const [ingredientCategories, setIngredientCategories] = useState<any[]>([]);
-  const [productCategories, setProductCategories] = useState<any[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
-  const [transactionCategories, setTransactionCategories] = useState<any[]>([]);
+   const [ingredientCategories, setIngredientCategories] = useState<any[]>([]);
+   const [productCategories, setProductCategories] = useState<any[]>([]);
+   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+   const [transactionCategories, setTransactionCategories] = useState<any[]>([]);
+   const [customerOrigins, setCustomerOrigins] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -35,16 +37,18 @@ export default function Categories() {
   async function loadData() {
     setLoading(true);
     try {
-      const [ingCat, prodCat, payMethods, transCat] = await Promise.all([
+      const [ingCat, prodCat, payMethods, transCat, origins] = await Promise.all([
         getIngredientCategories(),
         getProductCategories(),
         getPaymentMethods(),
-        getTransactionCategories()
+        getTransactionCategories(),
+        getCustomerOrigins()
       ]);
       setIngredientCategories(ingCat || []);
       setProductCategories(prodCat || []);
       setPaymentMethods(payMethods || []);
       setTransactionCategories(transCat || []);
+      setCustomerOrigins(origins || []);
     } catch (error) {
       toast.error('Erro ao carregar categorias');
     }
@@ -79,28 +83,42 @@ export default function Categories() {
     }
 
     try {
-      const payload = {
-        name: formData.name,
-        description: formData.description,
-        color: formData.color,
-        ...(activeTab === 'transaction' && { type: formData.type })
-      };
+       const basePayload = {
+         name: formData.name,
+         description: formData.description,
+         color: formData.color,
+       };
 
-      if (editingId) {
-        if (activeTab === 'ingredients') await updateIngredientCategory(editingId, payload);
-        else if (activeTab === 'products') await updateProductCategory(editingId, payload);
-        else if (activeTab === 'payment') await updatePaymentMethod(editingId, payload);
-        else if (activeTab === 'transaction') await updateTransactionCategory(editingId, payload);
-        toast.success('Categoria atualizada com sucesso');
-      } else {
-        if (activeTab === 'ingredients') await addIngredientCategory(payload);
-        else if (activeTab === 'products') await addProductCategory(payload);
-        else if (activeTab === 'payment') await addPaymentMethod(payload);
-        else if (activeTab === 'transaction') await addTransactionCategory(payload);
-        toast.success('Categoria adicionada com sucesso');
-      }
+       let payload: any;
+       if (activeTab === 'transaction') {
+         payload = { name: formData.name, type: formData.type, ...(editingId && { color: formData.color }) };
+       } else if (activeTab === 'payment' || activeTab === 'origin') {
+         payload = { name: formData.name, ...(editingId && { color: formData.color }) };
+       } else {
+         payload = basePayload;
+       }
+
+       if (editingId) {
+         if (activeTab === 'ingredients') await updateIngredientCategory(editingId, payload);
+         else if (activeTab === 'products') await updateProductCategory(editingId, payload);
+         else if (activeTab === 'payment') await updatePaymentMethod(editingId, payload);
+         else if (activeTab === 'transaction') await updateTransactionCategory(editingId, payload);
+         else if (activeTab === 'origin') await updateCustomerOrigin(editingId, payload);
+         toast.success('Categoria atualizada com sucesso');
+       } else {
+         if (activeTab === 'ingredients') await addIngredientCategory(payload);
+         else if (activeTab === 'products') await addProductCategory(payload);
+         else if (activeTab === 'payment') await addPaymentMethod(payload);
+         else if (activeTab === 'transaction') {
+           console.log('Adicionando categoria de transação:', payload);
+           await addTransactionCategory(payload);
+         }
+         else if (activeTab === 'origin') await addCustomerOrigin(payload);
+         toast.success('Categoria adicionada com sucesso');
+       }
       setShowModal(false);
-      loadData();
+      console.log('Recarregando dados...');
+      await loadData();
     } catch (error) {
       toast.error('Erro ao salvar categoria');
     }
@@ -113,6 +131,7 @@ export default function Categories() {
         else if (activeTab === 'products') await deleteProductCategory(id);
         else if (activeTab === 'payment') await deletePaymentMethod(id);
         else if (activeTab === 'transaction') await deleteTransactionCategory(id);
+        else if (activeTab === 'origin') await deleteCustomerOrigin(id);
         toast.success('Categoria deletada com sucesso');
         loadData();
       } catch (error) {
@@ -125,7 +144,8 @@ export default function Categories() {
     if (activeTab === 'ingredients') return ingredientCategories;
     if (activeTab === 'products') return productCategories;
     if (activeTab === 'payment') return paymentMethods;
-    return transactionCategories;
+    if (activeTab === 'transaction') return transactionCategories;
+    return customerOrigins;
   };
 
   const currentData = getCurrentData();
@@ -153,7 +173,7 @@ export default function Categories() {
       </div>
 
       <div className="flex gap-2 border-b border-border">
-        {['ingredients', 'products', 'payment', 'transaction'].map(tab => (
+        {['ingredients', 'products', 'payment', 'transaction', 'origin'].map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -167,6 +187,7 @@ export default function Categories() {
             {tab === 'products' && 'Produtos'}
             {tab === 'payment' && 'Pagamento'}
             {tab === 'transaction' && 'Transações'}
+            {tab === 'origin' && 'Origem de Clientes'}
           </button>
         ))}
       </div>

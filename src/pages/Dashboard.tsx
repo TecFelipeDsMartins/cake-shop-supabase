@@ -58,7 +58,9 @@ export default function Dashboard() {
       const salesByDate: { [key: string]: number } = {};
       salesList?.forEach((sale: any) => {
         const date = new Date(sale.sale_date).toLocaleDateString('pt-BR');
-        salesByDate[date] = (salesByDate[date] || 0) + (sale.total_amount || 0);
+        const amount = sale.total_amount || 0;
+        const correctedAmount = amount < 100 ? amount * 100 : amount;
+        salesByDate[date] = (salesByDate[date] || 0) + correctedAmount;
       });
 
       const chartData = Object.entries(salesByDate)

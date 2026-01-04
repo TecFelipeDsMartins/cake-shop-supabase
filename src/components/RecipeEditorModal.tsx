@@ -32,9 +32,12 @@ export default function RecipeEditorModal({
   onSave,
   onClose,
 }: RecipeEditorModalProps) {
-  const [formData, setFormData] = useState<Recipe>(
-    recipe || {
-      id: Math.random(),
+  const [formData, setFormData] = useState<Recipe>(() =>
+    recipe ? {
+      ...recipe,
+      ingredients: recipe.ingredients || [], // Garantir que ingredients seja array
+    } : {
+      id: 0,
       name: '',
       type: 'base',
       description: '',
@@ -49,7 +52,15 @@ export default function RecipeEditorModal({
       updatedAt: new Date().toISOString(),
     }
   );
-
+  // Atualizar formData quando recipe mudar
+  useEffect(() => {
+    if (recipe) {
+      setFormData({
+        ...recipe,
+        ingredients: recipe.ingredients || [],
+      });
+    }
+  }, [recipe]);
   const [newIngredient, setNewIngredient] = useState<Partial<RecipeIngredient>>({
     quantity: 1,
     unit: 'g',

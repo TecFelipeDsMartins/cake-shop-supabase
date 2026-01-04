@@ -18,6 +18,14 @@ export default function Recipes() {
     loadData();
   }, []);
 
+  // Atualizar editingRecipe quando recipes mudar
+  useEffect(() => {
+    if (editingRecipe && showModal) {
+      const updated = recipes.find(r => r.id === editingRecipe.id);
+      if (updated) setEditingRecipe(updated);
+    }
+  }, [recipes]);
+
   async function loadData() {
     setLoading(true);
     try {
@@ -87,8 +95,8 @@ export default function Recipes() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xl font-black text-accent">R$ {recipe.cost.toFixed(2)}</p>
-                <p className="text-[10px] text-muted-foreground uppercase font-bold">Custo Unitário</p>
+                <p className="text-xl font-black text-accent">R$ {recipe.totalCost.toFixed(2)}</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold">Custo Total</p>
               </div>
             </div>
 

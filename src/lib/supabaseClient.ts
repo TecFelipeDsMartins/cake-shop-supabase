@@ -76,6 +76,15 @@ export async function updateIngredient(id: number, ingredient: any) {
 }
 
 export async function deleteIngredient(id: number) {
+  // Primeiro, deletar todas as referências em technical_sheets
+  const { error: sheetError } = await supabase
+    .from('technical_sheets')
+    .delete()
+    .eq('component_id', id);
+  
+  if (handleError(sheetError, 'deleteIngredient - technical_sheets')) return;
+  
+  // Depois, deletar o ingrediente
   const { error } = await supabase.from('ingredients').delete().eq('id', id);
   handleError(error, 'deleteIngredient');
 }
@@ -97,13 +106,71 @@ export async function getRecipes() {
   const recipesWithSheets = await Promise.all((data || []).map(async (recipe) => {
     try {
       const sheet = await getTechnicalSheet(recipe.id, 'RECIPE');
+      // Mapear a ficha técnica para o formato de ingredients esperado pelo Recipe
+      const ingredients = (sheet || []).map((entry: any) => {
+        // Ajustar custo baseado nas unidades
+        const baseUnit = entry.component?.unit || 'kg';
+        const targetUnit = entry.unit || 'g';
+        const baseCost = entry.component?.cost || 0;
+        let adjustedCost = baseCost;
+        const unit = baseUnit.toLowerCase();
+        const target = targetUnit.toLowerCase();
+        if (unit !== target) {
+          if (unit === 'kg' && target === 'g') adjustedCost = baseCost / 1000;
+          else if (unit === 'g' && target === 'kg') adjustedCost = baseCost * 1000;
+          else if (unit === 'l' && target === 'ml') adjustedCost = baseCost / 1000;
+          else if (unit === 'ml' && target === 'l') adjustedCost = baseCost * 1000;
+        }
+        
+        return {
+          id: Math.random(), // ID temporário para o componente
+          ingredientId: entry.component_id,
+          ingredientName: entry.component?.name || 'Desconhecido',
+          quantity: entry.quantity,
+          unit: entry.unit,
+          costPerUnit: adjustedCost,
+          totalCost: entry.quantity * adjustedCost,
+        };
+      });
+      
+      const totalCost = ingredients.reduce((sum, ing) => sum + (ing?.totalCost || 0), 0) + (recipe.cost || 0);
+      const costPerUnit = recipe.current_stock > 0 ? totalCost / (recipe.current_stock || 1) : 0;
+      
       return {
-        ...recipe,
-        technical_sheet: sheet
+        id: recipe.id,
+        name: recipe.name,
+        type: (recipe.item_type === 'RECIPE' ? 'processed' : 'base') as IngredientType,
+        description: '',
+        category: '',
+        ingredients,
+        prepCost: recipe.cost || 0,
+        cost: recipe.cost || 0, // Para compatibilidade com o display
+        totalCost,
+        yield: recipe.current_stock || 1,
+        yieldUnit: recipe.unit || 'un',
+        costPerUnit,
+        createdAt: recipe.created_at,
+        updatedAt: recipe.updated_at,
       };
+      console.log('loaded ingredients for recipe', recipe.id, ':', ingredients.length, 'items');
     } catch (error) {
-      // Se não houver ficha técnica, retorna receita sem ela
-      return recipe;
+      console.log('error loading technical sheet for recipe', recipe.id, error);
+      return {
+        id: recipe.id,
+        name: recipe.name,
+        type: (recipe.item_type === 'RECIPE' ? 'processed' : 'base') as IngredientType,
+        description: '',
+        category: '',
+        ingredients: [],
+        prepCost: recipe.cost || 0,
+        cost: recipe.cost || 0, // Para compatibilidade
+        totalCost: recipe.cost || 0,
+        yield: recipe.current_stock || 1,
+        yieldUnit: recipe.unit || 'un',
+        costPerUnit: 0,
+        createdAt: recipe.created_at,
+        updatedAt: recipe.updated_at,
+      };
     }
   }));
   
@@ -128,13 +195,14 @@ export async function deleteRecipe(id: number) {
 }
 
 export async function saveFullRecipe(recipeData: any) {
+  console.log('saveFullRecipe recipeData.totalCost:', recipeData.totalCost);
   try {
     const recipeId = recipeData.id;
     
     // 1. Salvar ou atualizar o item base (na tabela ingredients para receitas)
     const ingredientPayload: any = {
       name: recipeData.name,
-      cost: recipeData.prepCost || 0, // Custo de preparo inicial
+      cost: recipeData.totalCost || 0, // Usar o custo total em vez do custo de preparo
       unit: recipeData.yieldUnit,
       current_stock: recipeData.yield || 0,
       is_processed: true
@@ -215,18 +283,64 @@ export async function getProducts() {
 }
 
 export async function getProductsWithIngredients() {
+  console.log('getProductsWithIngredients called');
   const { data: products, error } = await supabase.from('products').select('*').order('name');
+  console.log('products fetched:', products, 'error:', error);
   if (handleError(error, 'getProducts')) return [];
 
   const result = await Promise.all((products || []).map(async (product) => {
-    const { data: ingredients } = await supabase
-      .from('product_ingredients')
-      .select('*')
-      .eq('product_id', product.id);
+    console.log('processing product:', product.id, product.name);
+    // Buscar ficha técnica do produto
+    const sheet = await getTechnicalSheet(product.id, 'FINAL_PRODUCT');
+    console.log('sheet for product', product.id, ':', sheet);
+    
+    // Mapear para o formato de ingredients
+    const ingredients = await Promise.all((sheet || []).map(async (entry: any) => {
+      let component = await supabase
+        .from('ingredients')
+        .select('name, cost, unit, is_processed')
+        .eq('id', entry.component_id)
+        .single();
+      
+      console.log('component for id', entry.component_id, ':', component.data, 'error:', component.error);
+      
+      let adjustedCost = component.data?.cost || 0;
+      
+      // Se for uma receita processada, buscar o custo total da receita
+      if (component.data?.is_processed) {
+        const recipes = await getRecipes();
+        const recipe = recipes.find(r => r.id === entry.component_id);
+        console.log('recipe found:', recipe, 'totalCost:', recipe?.totalCost);
+        if (recipe) {
+          adjustedCost = recipe.totalCost || 0;
+        }
+      }
+      
+      // Ajustar custo baseado nas unidades
+      const baseUnit = component.data?.unit || 'kg';
+      const targetUnit = entry.unit || 'g';
+      if (baseUnit !== targetUnit) {
+        if (baseUnit === 'kg' && targetUnit === 'g') adjustedCost = adjustedCost / 1000;
+        else if (baseUnit === 'g' && targetUnit === 'kg') adjustedCost = adjustedCost * 1000;
+        else if (baseUnit === 'l' && targetUnit === 'ml') adjustedCost = adjustedCost / 1000;
+        else if (baseUnit === 'ml' && targetUnit === 'l') adjustedCost = adjustedCost * 1000;
+      }
+      
+      return {
+        id: Math.random(),
+        ingredient_id: entry.component_id,
+        ingredient_name: component.data?.name || 'Desconhecido',
+        quantity: entry.quantity || 1,
+        unit: entry.unit || 'un',
+        cost: adjustedCost,
+        total_cost: (entry.quantity || 1) * adjustedCost,
+      };
+    }));
     
     return {
       ...product,
-      ingredients: ingredients || []
+      ingredients,
+      production_cost: ingredients.reduce((sum, ing) => sum + ing.total_cost, 0)
     };
   }));
   
@@ -240,7 +354,7 @@ export async function addProduct(product: any) {
 }
 
 export async function updateProduct(id: number, product: any) {
-  const { technical_sheet, ...productData } = product;
+  const { technical_sheet, ingredients, ...productData } = product;
   const { data, error } = await supabase.from('products').update(productData).eq('id', id).select();
   
   if (!handleError(error, 'updateProduct') && technical_sheet) {
@@ -251,7 +365,7 @@ export async function updateProduct(id: number, product: any) {
 }
 
 export async function saveFullProduct(product: any) {
-  const { technical_sheet, ...productData } = product;
+  const { technical_sheet, ingredients, ...productData } = product;
   let productId = product.id;
 
   if (productId) {
@@ -382,11 +496,35 @@ export async function updatePaymentMethod(id: number, method: any) {
 }
 
 export async function deletePaymentMethod(id: number) {
-  const { error } = await supabase.from('payment_methods').delete().eq('id', id);
-  handleError(error, 'deletePaymentMethod');
-}
+   const { error } = await supabase.from('payment_methods').delete().eq('id', id);
+   handleError(error, 'deletePaymentMethod');
+ }
 
-// ===== VENDAS (SALES) =====
+ // ===== CUSTOMER ORIGINS =====
+ export async function getCustomerOrigins() {
+   const { data, error } = await supabase.from('customer_origins').select('*').order('name');
+   if (handleError(error, 'getCustomerOrigins')) return [];
+   return data || [];
+ }
+
+ export async function addCustomerOrigin(origin: any) {
+   const { data, error } = await supabase.from('customer_origins').insert([origin]).select();
+   handleError(error, 'addCustomerOrigin');
+   return data?.[0];
+ }
+
+ export async function updateCustomerOrigin(id: number, origin: any) {
+   const { data, error } = await supabase.from('customer_origins').update(origin).eq('id', id).select();
+   handleError(error, 'updateCustomerOrigin');
+   return data?.[0];
+ }
+
+ export async function deleteCustomerOrigin(id: number) {
+   const { error } = await supabase.from('customer_origins').delete().eq('id', id);
+   handleError(error, 'deleteCustomerOrigin');
+ }
+
+ // ===== VENDAS (SALES) =====
 export async function getSales() {
   const { data, error } = await supabase
     .from('sales')
@@ -398,7 +536,11 @@ export async function getSales() {
     `)
     .order('sale_date', { ascending: false });
   if (handleError(error, 'getSales')) return [];
-  return data || [];
+  // Corrigir total_amount que foram salvos com divisão por 100
+  return (data || []).map(sale => ({
+    ...sale,
+    total_amount: sale.total_amount < 100 ? sale.total_amount * 100 : sale.total_amount
+  }));
 }
 
 export async function addSale(sale: any) {
@@ -428,7 +570,11 @@ export async function getSaleItems(saleId: number) {
     `)
     .eq('sale_id', saleId);
   if (handleError(error, 'getSaleItems')) return [];
-  return data || [];
+  // Corrigir subtotals que foram salvos com divisão por 100
+  return (data || []).map(item => ({
+    ...item,
+    subtotal: item.subtotal < 100 ? item.subtotal * 100 : item.subtotal
+  }));
 }
 
 export async function addSaleItem(item: any) {
@@ -449,9 +595,7 @@ export async function getFinancialTransactions() {
     .select(`
       *,
       category:transaction_categories(name, type),
-      account:accounts(name),
-      from_account:accounts(name),
-      to_account:accounts(name)
+      account:accounts!account_id(name)
     `)
     .order('transaction_date', { ascending: false });
   if (handleError(error, 'getFinancialTransactions')) return [];
@@ -494,7 +638,12 @@ export async function getDashboardMetrics() {
       .from('customers')
       .select('id');
 
-    const totalSales = salesData?.reduce((sum, s) => sum + (s.total_amount || 0), 0) || 0;
+    // Corrigir valores que foram salvos com divisão por 100
+    const totalSales = salesData?.reduce((sum, s) => {
+      const amount = s.total_amount || 0;
+      const correctedAmount = amount < 100 ? amount * 100 : amount;
+      return sum + correctedAmount;
+    }, 0) || 0;
 
     return {
       totalSales,
@@ -517,15 +666,27 @@ export async function getDashboardMetrics() {
 export async function getTechnicalSheet(parentId: number, parentType: string) {
   const { data, error } = await supabase
     .from('technical_sheets')
-    .select(`
-      *,
-      component:ingredients(name, cost, unit)
-    `)
+    .select('*')
     .eq('parent_id', parentId)
     .eq('parent_type', parentType);
   
   if (handleError(error, 'getTechnicalSheet')) return [];
-  return data || [];
+  
+  // Buscar os componentes separadamente
+  const sheetWithComponents = await Promise.all((data || []).map(async (entry) => {
+    const { data: comp, error: compError } = await supabase
+      .from('ingredients')
+      .select('name, cost, unit')
+      .eq('id', entry.component_id)
+      .single();
+    
+    return {
+      ...entry,
+      component: comp || { name: 'Desconhecido', cost: 0, unit: 'un' }
+    };
+  }));
+  
+  return sheetWithComponents;
 }
 
 export async function saveTechnicalSheet(parentId: number, parentType: string, entries: any[]) {

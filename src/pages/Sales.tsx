@@ -229,7 +229,7 @@ export default function Sales() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">Receita Total</p>
-          <p className="text-2xl font-bold text-accent">R$ {(totalRevenue / 100).toFixed(2)}</p>
+          <p className="text-2xl font-bold text-accent">R$ {totalRevenue.toFixed(2)}</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">Total de Vendas</p>
@@ -237,7 +237,7 @@ export default function Sales() {
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">Ticket Médio</p>
-          <p className="text-2xl font-bold">R$ {sales.length > 0 ? ((totalRevenue / sales.length) / 100).toFixed(2) : '0.00'}</p>
+          <p className="text-2xl font-bold">R$ {sales.length > 0 ? (totalRevenue / sales.length).toFixed(2) : '0.00'}</p>
         </Card>
       </div>
 
@@ -264,19 +264,19 @@ export default function Sales() {
           <div className="space-y-3">
             {sales.slice(0, 5).map(sale => (
               <div key={sale.id} className="flex justify-between items-center p-3 border rounded hover:bg-muted/30">
-                <div>
-                  <p className="font-bold">{sale.customer?.name || 'Cliente Avulso'}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(sale.sale_date).toLocaleString('pt-BR')}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-accent">R$ {(sale.total_amount / 100).toFixed(2)}</p>
-                  <button 
-                    onClick={() => handleDelete(sale.id)} 
-                    className="text-red-500 text-xs hover:underline"
-                  >
-                    Excluir
-                  </button>
-                </div>
+               <div>
+                 <p className="font-bold">{sale.customer?.name || 'Cliente Avulso'}</p>
+                 <p className="text-xs text-muted-foreground">{new Date(sale.sale_date).toLocaleString('pt-BR')}</p>
+               </div>
+               <div className="text-right">
+                 <p className="font-bold text-accent">R$ {sale.total_amount.toFixed(2)}</p>
+                 <button 
+                   onClick={() => handleDelete(sale.id)} 
+                   className="text-red-500 text-xs hover:underline"
+                 >
+                   Excluir
+                 </button>
+               </div>
               </div>
             ))}
           </div>
@@ -320,9 +320,9 @@ export default function Sales() {
                     className="col-span-2 p-2 border border-border rounded bg-background text-foreground"
                     value={newItem.product_id} 
                     onChange={e => {
-                      const p = products.find(prod => prod.id === parseInt(e.target.value));
-                      setNewItem({...newItem, product_id: e.target.value, unit_price: p?.price ? p.price / 100 : 0});
-                    }}
+                       const p = products.find(prod => prod.id === parseInt(e.target.value));
+                       setNewItem({...newItem, product_id: e.target.value, unit_price: p?.price || 0});
+                     }}
                   >
                     <option value="">Selecione um produto...</option>
                     {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
