@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Menu, X, BarChart3, Package, ShoppingCart, DollarSign, FileText, LogOut, Leaf, Tag, BookOpen, Wallet, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,15 @@ export default function Sidebar({ currentPath }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [, setLocation] = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
+
+  // Redirecionar quando o usuário fica null (logout completo)
+  useEffect(() => {
+    if (isLoggingOut && !user) {
+      setLocation('/login');
+      setIsLoggingOut(false);
+    }
+  }, [user, isLoggingOut, setLocation]);
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -94,10 +102,7 @@ export default function Sidebar({ currentPath }: SidebarProps) {
               try {
                 await signOut();
                 toast.success('Desconectado com sucesso');
-                // Aguardar um pouco para garantir que o estado foi atualizado
-                setTimeout(() => {
-                  setLocation('/login');
-                }, 100);
+                // O useEffect acima cuidará da redireção quando user ficar null
               } catch (error: any) {
                 console.error('Erro ao desconectar:', error);
                 toast.error('Erro ao desconectar');

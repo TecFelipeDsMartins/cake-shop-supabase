@@ -72,6 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Limpar o estado localmente para garantir que a redireção funcione
       setSession(null);
       setUser(null);
+      // Limpar qualquer dado de sessão do Supabase do localStorage
+      localStorage.removeItem('sb-auth-token');
+      localStorage.removeItem('supabase.auth.token');
     } catch (err: any) {
       setError(err.message);
       throw err;
