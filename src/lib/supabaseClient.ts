@@ -460,7 +460,11 @@ export async function saveFullProduct(product: any) {
   if (productId) {
     await updateProduct(productId, product);
   } else {
-    const { data, error } = await supabase.from('products').insert([productData]).select();
+    // Adicionar user_id do usuário autenticado
+    const { data: { user } } = await supabase.auth.getUser();
+    const payload = { ...productData, user_id: user?.id };
+    
+    const { data, error } = await supabase.from('products').insert([payload]).select();
     if (!handleError(error, 'addProduct') && data?.[0]) {
       productId = data[0].id;
       if (technical_sheet) {
@@ -472,8 +476,31 @@ export async function saveFullProduct(product: any) {
 }
 
 export async function deleteProduct(id: number) {
-  const { error } = await supabase.from('products').delete().eq('id', id);
-  handleError(error, 'deleteProduct');
+  try {
+    console.log('Deletando produto ID:', id);
+    
+    // 1. Deletar sale_items
+    await supabase.from('sale_items').delete().eq('product_id', id);
+    
+    // 2. Deletar product_ingredients
+    await supabase.from('product_ingredients').delete().eq('product_id', id);
+
+    // 3. Deletar o produto
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id);
+    
+    console.log('Produto deletado, erro:', error);
+    
+    if (error) {
+      console.error('Erro ao deletar:', error);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Erro ao deletar produto:', error);
+    throw error;
+  }
 }
 
 // ===== PRODUCT INGREDIENTS =====

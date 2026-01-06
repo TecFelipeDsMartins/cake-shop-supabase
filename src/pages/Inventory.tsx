@@ -161,7 +161,32 @@ export default function Inventory() {
             <div className="flex gap-2">
               <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedProduct(p); setShowRecipe(true); }}>Ficha</Button>
               <Button variant="outline" size="sm" onClick={() => handleOpenModal(p)}><Edit2 size={14} /></Button>
-              <Button variant="outline" size="sm" className="text-red-500" onClick={() => deleteProduct(p.id).then(loadData)}><Trash2 size={14} /></Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-red-500" 
+                onClick={async () => {
+                  console.log('Clicou em deletar produto:', p.id, p.name);
+                  if (confirm(`Deseja deletar "${p.name}"?`)) {
+                    console.log('Confirmou deleção. Chamando deleteProduct...');
+                   try {
+                      console.log('Antes de chamar deleteProduct');
+                      await deleteProduct(p.id);
+                      console.log('deleteProduct retornou com sucesso');
+                      toast.success('Produto deletado');
+                      // Remover do estado imediatamente
+                      setProducts(prev => prev.filter(prod => prod.id !== p.id));
+                    } catch (error: any) {
+                      console.error('Erro ao deletar:', error);
+                      console.error('Mensagem:', error.message);
+                      console.error('Details:', error.details);
+                      toast.error(`Erro ao deletar: ${error.message || 'Erro desconhecido'}`);
+                    }
+                  }
+                }}
+              >
+                <Trash2 size={14} />
+              </Button>
             </div>
           </Card>
         ))}
