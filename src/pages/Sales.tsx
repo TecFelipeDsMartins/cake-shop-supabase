@@ -187,8 +187,9 @@ export default function Sales() {
       try {
         await deleteSale(id);
         toast.success('Venda deletada com sucesso');
-        loadData();
+        setSales(prev => prev.filter(s => s.id !== id));
       } catch (error) {
+        console.error('Erro ao deletar venda:', error);
         toast.error('Erro ao deletar venda');
       }
     }

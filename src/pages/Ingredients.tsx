@@ -167,7 +167,23 @@ export default function Ingredients() {
               <Button variant="outline" size="sm" className="flex-1" onClick={() => handleOpenModal(ingredient)}>
                 <Edit2 size={14} className="mr-1" /> Editar
               </Button>
-              <Button variant="outline" size="sm" className="text-red-500" onClick={() => deleteIngredient(ingredient.id).then(loadData)}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-red-500" 
+                onClick={async () => {
+                  if (confirm(`Deseja deletar "${ingredient.name}"?`)) {
+                    try {
+                      await deleteIngredient(ingredient.id);
+                      setIngredients(prev => prev.filter(ing => ing.id !== ingredient.id));
+                      toast.success('Insumo deletado');
+                    } catch (error) {
+                      console.error('Erro ao deletar:', error);
+                      toast.error('Erro ao deletar insumo');
+                    }
+                  }
+                }}
+              >
                 <Trash2 size={14} />
               </Button>
             </div>

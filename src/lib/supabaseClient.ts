@@ -146,17 +146,22 @@ export async function updateIngredient(id: number, ingredient: any) {
 }
 
 export async function deleteIngredient(id: number) {
-  // Primeiro, deletar todas as referências em technical_sheets
-  const { error: sheetError } = await supabase
-    .from('technical_sheets')
-    .delete()
-    .eq('component_id', id);
-  
-  if (handleError(sheetError, 'deleteIngredient - technical_sheets')) return;
-  
-  // Depois, deletar o ingrediente
-  const { error } = await supabase.from('ingredients').delete().eq('id', id);
-  handleError(error, 'deleteIngredient');
+  try {
+    // Primeiro, deletar todas as referências em technical_sheets
+    const { error: sheetError } = await supabase
+      .from('technical_sheets')
+      .delete()
+      .eq('component_id', id);
+    
+    if (sheetError) throw sheetError;
+    
+    // Depois, deletar o ingrediente
+    const { error } = await supabase.from('ingredients').delete().eq('id', id);
+    if (error) throw error;
+  } catch (error) {
+    console.error('Erro ao deletar ingrediente:', error);
+    throw error;
+  }
 }
 
 // ===== RECEITAS (RECIPES) =====
@@ -676,8 +681,17 @@ export async function updateSale(id: number, sale: any) {
 }
 
 export async function deleteSale(id: number) {
-  const { error } = await supabase.from('sales').delete().eq('id', id);
-  handleError(error, 'deleteSale');
+  try {
+    // 1. Deletar sale_items primeiro
+    await supabase.from('sale_items').delete().eq('sale_id', id);
+    
+    // 2. Deletar a venda
+    const { error } = await supabase.from('sales').delete().eq('id', id);
+    if (error) throw error;
+  } catch (error) {
+    console.error('Erro ao deletar venda:', error);
+    throw error;
+  }
 }
 
 // ===== SALE ITEMS =====
