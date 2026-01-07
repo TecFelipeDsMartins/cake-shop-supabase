@@ -204,13 +204,19 @@ export default function Inventory() {
               <input type="text" placeholder="Nome" className="w-full p-2 border rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Preço</label>
+                  <label className="block text-sm font-medium mb-1">Preço de Venda</label>
                   <div className="flex">
                     <span className="inline-flex items-center px-3 bg-gray-200 border border-r-0 rounded-l text-sm">R$</span>
                     <input type="number" placeholder="0.00" className="flex-1 p-2 border rounded-r" value={formData.price} onChange={e => setFormData({...formData, price: parseFloat(e.target.value) || 0})} />
                   </div>
                 </div>
-                <div className="p-2 bg-muted rounded font-bold flex items-center">Custo: R$ {formData.production_cost.toFixed(2)}</div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Custo de Produção</label>
+                  <div className="flex">
+                    <span className="inline-flex items-center px-3 bg-gray-200 border border-r-0 rounded-l text-sm">R$</span>
+                    <input type="number" placeholder="0.00" className="flex-1 p-2 border rounded-r" value={formData.production_cost} onChange={e => setFormData({...formData, production_cost: parseFloat(e.target.value) || 0})} />
+                  </div>
+                </div>
               </div>
 
               <div className="p-2 bg-green-100 rounded font-bold text-green-800">

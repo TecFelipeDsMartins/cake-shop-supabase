@@ -700,7 +700,7 @@ export async function getSaleItems(saleId: number) {
     .from('sale_items')
     .select(`
       *,
-      product:products(name, price)
+      product:products(name, price, production_cost)
     `)
     .eq('sale_id', saleId);
   if (handleError(error, 'getSaleItems')) return [];

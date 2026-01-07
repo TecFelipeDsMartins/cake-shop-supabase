@@ -16,6 +16,7 @@ export default function Dashboard() {
     totalProducts: 0,
   });
   const [birthdayCustomers, setBirthdayCustomers] = useState<any[]>([]);
+  const [lowStockIngredients, setLowStockIngredients] = useState<any[]>([]);
   const [salesData, setSalesData] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +54,10 @@ export default function Dashboard() {
         return birthMonth === currentMonth;
       }) || [];
       setBirthdayCustomers(birthdays);
+
+      // Processar insumos com estoque baixo
+      const lowStock = ingredientsList?.filter((i: any) => i.current_stock < i.minimum_stock).sort((a: any, b: any) => a.current_stock - b.current_stock) || [];
+      setLowStockIngredients(lowStock);
 
       // Processar dados de vendas por dia
       const salesByDate: { [key: string]: number } = {};
@@ -198,6 +203,33 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">
                   {customer.birth_date && new Date(customer.birth_date).toLocaleDateString('pt-BR')}
                 </p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Insumos com Estoque Baixo */}
+      {lowStockIngredients.length > 0 && (
+        <Card className="p-6 bg-gradient-to-r from-red-50 to-rose-50 border-red-200">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <h2 className="text-lg font-semibold text-red-900">Insumos com Estoque Baixo</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {lowStockIngredients.map(ingredient => (
+              <div key={ingredient.id} className="bg-white rounded-lg p-3 border border-red-100">
+                <p className="font-medium text-foreground">{ingredient.name}</p>
+                <div className="text-sm mt-2 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Atual:</span>
+                    <span className="font-bold text-red-600">{ingredient.current_stock} {ingredient.unit}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Mínimo:</span>
+                    <span className="text-muted-foreground">{ingredient.minimum_stock} {ingredient.unit}</span>
+                  </div>
+                </div>
               </div>
             ))}
           </div>

@@ -19,6 +19,7 @@ export default function Reports() {
    const [monthlyData, setMonthlyData] = useState<any[]>([]);
    const [productPerformance, setProductPerformance] = useState<ProductPerformance[]>([]);
    const [categoryPerformance, setCategoryPerformance] = useState<any[]>([]);
+   const [totalDeliveryExpenses, setTotalDeliveryExpenses] = useState(0);
    const [loading, setLoading] = useState(true);
 
    useEffect(() => {
@@ -29,6 +30,14 @@ export default function Reports() {
      setLoading(true);
      try {
        const sales = await getSales();
+       
+       // Calcular despesas com entrega
+       const deliveryExpenses = (sales || []).reduce((sum, sale) => sum + (sale.delivery_cost || 0), 0);
+       setTotalDeliveryExpenses(deliveryExpenses);
+       
+       // Processar produtos e itens
+       const saleItemsPromises = (sales || []).map(sale => getSaleItems(sale.id));
+       const allItems = await Promise.all(saleItemsPromises);
        
        // Processar dados por mês
        const monthlyMap: { [key: string]: any } = {};
@@ -41,25 +50,49 @@ export default function Reports() {
            monthlyMap[monthKey] = { month: monthLabel, revenue: 0, expenses: 0, profit: 0, units: 0 };
          }
          monthlyMap[monthKey].revenue += sale.total_amount || 0;
-         monthlyMap[monthKey].profit += (sale.total_amount || 0) * 0.4;
        }
+       
+       // Somar unidades por mês
+       allItems.forEach((saleItems, saleIndex) => {
+        const sale = sales[saleIndex];
+        const date = new Date(sale.sale_date);
+        const monthKey = `${date.getMonth() + 1}`.padStart(2, '0');
+        
+        saleItems.forEach((item: any) => {
+          monthlyMap[monthKey].units += item.quantity || 0;
+          const productCost = item.product?.production_cost || 0;
+          const itemExpense = productCost * (item.quantity || 0);
+          monthlyMap[monthKey].expenses += itemExpense;
+        });
+       });
+       
+       // Calcular lucro
+       Object.values(monthlyMap).forEach((month: any) => {
+         month.profit = month.revenue - month.expenses;
+       });
+       
        const computed = Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month));
        setMonthlyData(computed);
 
        // Processar produtos mais vendidos
        const productMap: { [key: string]: any } = {};
-       const saleItemsPromises = (sales || []).map(sale => getSaleItems(sale.id));
-       const allItems = await Promise.all(saleItemsPromises);
        
        allItems.forEach(items => {
          items.forEach((item: any) => {
            const key = item.product_id;
            if (!productMap[key]) {
-             productMap[key] = { product: item.product?.name || 'Produto', sales: 0, revenue: 0, margin: 40, trend: 0 };
+             productMap[key] = { product: item.product?.name || 'Produto', sales: 0, revenue: 0, expenses: 0, margin: 0, trend: 0 };
            }
-           productMap[key].sales += item.quantity;
+           productMap[key].sales += item.quantity || 0;
            productMap[key].revenue += item.subtotal || 0;
+           productMap[key].expenses += (item.product?.production_cost || 0) * item.quantity || 0;
          });
+       });
+       
+       // Calcular margem real
+       Object.values(productMap).forEach((prod: any) => {
+         const profit = prod.revenue - prod.expenses;
+         prod.margin = prod.revenue > 0 ? Math.round((profit / prod.revenue) * 100) : 0;
        });
        
        const topProds = Object.values(productMap)
@@ -67,19 +100,19 @@ export default function Reports() {
          .slice(0, 5);
        setProductPerformance(topProds);
 
-       // Categorias (simplificado)
+       // Categorias por tipo de produto (agrupado)
        const categoryMap: { [key: string]: any } = {};
        allItems.forEach(items => {
          items.forEach((item: any) => {
-           const categoryName = item.product?.name?.split(' ')[0] || 'Outros';
+           const categoryName = item.product?.name || 'Outros';
            if (!categoryMap[categoryName]) {
              categoryMap[categoryName] = { name: categoryName, value: 0, units: 0 };
            }
            categoryMap[categoryName].value += item.subtotal || 0;
-           categoryMap[categoryName].units += item.quantity;
+           categoryMap[categoryName].units += item.quantity || 0;
          });
        });
-       setCategoryPerformance(Object.values(categoryMap).slice(0, 4));
+       setCategoryPerformance(Object.values(categoryMap).sort((a: any, b: any) => b.value - a.value).slice(0, 4));
      } catch (error) {
        console.error('Erro ao carregar relatórios:', error);
      }
@@ -88,9 +121,11 @@ export default function Reports() {
 
   const totalRevenue = monthlyData.length > 0 ? monthlyData.reduce((sum, m) => sum + m.revenue, 0) : 0;
   const totalExpenses = monthlyData.length > 0 ? monthlyData.reduce((sum, m) => sum + m.expenses, 0) : 0;
-  const totalProfit = monthlyData.length > 0 ? monthlyData.reduce((sum, m) => sum + m.profit, 0) : 0;
+  const totalProfit = totalRevenue - totalExpenses;
+  const netProfit = totalProfit - totalDeliveryExpenses;
   const totalUnits = monthlyData.length > 0 ? monthlyData.reduce((sum, m) => sum + m.units, 0) : 0;
   const avgMargin = totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(1) : '0';
+  const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0';
 
   const topProduct = productPerformance.length > 0 ? productPerformance.reduce((prev, current) => 
     prev.revenue > current.revenue ? prev : current
@@ -124,10 +159,10 @@ export default function Reports() {
           </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="p-4">
           <p className="text-sm text-muted-foreground mb-1">Receita Total</p>
-          <p className="text-2xl font-bold text-green-600">R$ {(totalRevenue / 1000).toFixed(1)}k</p>
+          <p className="text-2xl font-bold text-green-600">R$ {totalRevenue.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</p>
           <div className="flex items-center gap-1 mt-2">
             <TrendingUp size={14} className="text-green-600" />
             <span className="text-xs text-green-600">+12.5% vs mês anterior</span>
@@ -135,19 +170,35 @@ export default function Reports() {
         </Card>
 
         <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Despesas Totais</p>
-          <p className="text-2xl font-bold text-red-600">R$ {(totalExpenses / 1000).toFixed(1)}k</p>
+          <p className="text-sm text-muted-foreground mb-1">Despesas (Insumos)</p>
+          <p className="text-2xl font-bold text-red-600">R$ {totalExpenses.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</p>
           <div className="flex items-center gap-1 mt-2">
             <TrendingDown size={14} className="text-red-600" />
-            <span className="text-xs text-red-600">{((totalExpenses / totalRevenue) * 100).toFixed(1)}% da receita</span>
+            <span className="text-xs text-red-600">{totalRevenue > 0 ? ((totalExpenses / totalRevenue) * 100).toFixed(1) : '0'}% da receita</span>
           </div>
         </Card>
 
         <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Lucro Total</p>
-          <p className="text-2xl font-bold text-accent">R$ {(totalProfit / 1000).toFixed(1)}k</p>
+          <p className="text-sm text-muted-foreground mb-1">Despesas (Entrega)</p>
+          <p className="text-2xl font-bold text-orange-600">R$ {totalDeliveryExpenses.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</p>
           <div className="flex items-center gap-1 mt-2">
-            <span className="text-xs text-accent font-semibold">{avgMargin}% de margem</span>
+            <span className="text-xs text-orange-600">{totalRevenue > 0 ? ((totalDeliveryExpenses / totalRevenue) * 100).toFixed(1) : '0'}% da receita</span>
+          </div>
+        </Card>
+
+        <Card className="p-4 border-2 border-blue-200 bg-blue-50">
+          <p className="text-sm text-muted-foreground mb-1 font-bold">Lucro Bruto</p>
+          <p className="text-2xl font-bold text-blue-600">R$ {totalProfit.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</p>
+          <div className="flex items-center gap-1 mt-2">
+            <span className="text-xs text-blue-600 font-semibold">{avgMargin}% de margem</span>
+          </div>
+        </Card>
+
+        <Card className="p-4 border-2 border-accent bg-accent/5">
+          <p className="text-sm text-muted-foreground mb-1 font-bold">Lucro Líquido</p>
+          <p className="text-2xl font-bold text-accent">R$ {netProfit.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</p>
+          <div className="flex items-center gap-1 mt-2">
+            <span className="text-xs text-accent font-semibold">{netMargin}% de margem líquida</span>
           </div>
         </Card>
 
@@ -155,15 +206,7 @@ export default function Reports() {
           <p className="text-sm text-muted-foreground mb-1">Unidades Vendidas</p>
           <p className="text-2xl font-bold text-foreground">{totalUnits}</p>
           <div className="flex items-center gap-1 mt-2">
-            <span className="text-xs text-muted-foreground">Ticket médio: R$ {(totalRevenue / totalUnits).toFixed(2)}</span>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Produto Top</p>
-          <p className="text-lg font-bold text-foreground truncate">{topProduct.product}</p>
-          <div className="flex items-center gap-1 mt-2">
-            <span className="text-xs text-accent">R$ {topProduct.revenue.toLocaleString('pt-BR')}</span>
+            <span className="text-xs text-muted-foreground">Ticket médio: R$ {totalUnits > 0 ? (totalRevenue / totalUnits).toFixed(2) : '0.00'}</span>
           </div>
         </Card>
       </div>

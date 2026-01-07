@@ -3,11 +3,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, RefreshCw } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { getSales, addSale, deleteSale, getCustomers, getProducts, getPaymentMethods, getAccounts, addSaleItem } from '@/lib/supabaseClient';
+import { getSales, addSale, deleteSale, getCustomers, getProducts, getPaymentMethods, getAccounts, addSaleItem, getSaleItems, updateSale, deleteSaleItem } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
 export default function Sales() {
   const [showModal, setShowModal] = useState(false);
+  const [editingSaleId, setEditingSaleId] = useState<number | null>(null);
   const [sales, setSales] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -20,7 +21,9 @@ export default function Sales() {
     payment_method_id: null,
     account_id: null,
     notes: '',
-    items: []
+    items: [],
+    delivery_type: '',
+    delivery_cost: 0
   });
 
   const [newItem, setNewItem] = useState({
@@ -72,6 +75,7 @@ export default function Sales() {
     const item = {
       ...newItem,
       product_name: product.name,
+      product_cost: product.production_cost || 0,
       subtotal: newItem.quantity * newItem.unit_price
     };
     setFormData({ ...formData, items: [...formData.items, item] });
@@ -132,7 +136,9 @@ export default function Sales() {
       }
     }
     
-    const total_amount = formData.items.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0);
+    const subtotal = formData.items.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0);
+    const delivery_cost = parseFloat(formData.delivery_cost) || 0;
+    const total_amount = subtotal + delivery_cost;
     
     if (total_amount <= 0) {
       toast.error('Total da venda deve ser maior que zero');
@@ -144,41 +150,102 @@ export default function Sales() {
       payment_method_id: formData.payment_method_id || null,
       account_id: formData.account_id || null,
       total_amount,
-      notes: formData.notes || null
+      notes: formData.notes || null,
+      delivery_type: formData.delivery_type || null,
+      delivery_cost: delivery_cost || 0
     };
 
     try {
-      const newSale = await addSale(salePayload);
-      
-      if (!newSale || !newSale.id) {
-        throw new Error('Falha ao criar venda');
-      }
-
-      // Adicionar itens da venda
-      const itemPromises = formData.items.map(async (item: any) => {
-        try {
-          await addSaleItem({
-            sale_id: newSale.id,
-            product_id: parseInt(item.product_id),
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            subtotal: item.subtotal
-          });
-        } catch (error) {
-          console.error(`Erro ao adicionar item ${item.product_id}:`, error);
-          throw error;
+      if (editingSaleId) {
+        // Editar venda existente
+        await updateSale(editingSaleId, salePayload);
+        
+        // Deletar itens antigos
+        const oldItems = await getSaleItems(editingSaleId);
+        for (const item of oldItems) {
+          await deleteSaleItem(item.id);
         }
-      });
+        
+        // Adicionar novos itens
+        const itemPromises = formData.items.map(async (item: any) => {
+          try {
+            await addSaleItem({
+              sale_id: editingSaleId,
+              product_id: parseInt(item.product_id),
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              subtotal: item.subtotal
+            });
+          } catch (error) {
+            console.error(`Erro ao adicionar item ${item.product_id}:`, error);
+            throw error;
+          }
+        });
 
-      await Promise.all(itemPromises);
+        await Promise.all(itemPromises);
+        toast.success('Venda atualizada com sucesso');
+      } else {
+        // Criar nova venda
+        const newSale = await addSale(salePayload);
+        
+        if (!newSale || !newSale.id) {
+          throw new Error('Falha ao criar venda');
+        }
+
+        // Adicionar itens da venda
+        const itemPromises = formData.items.map(async (item: any) => {
+          try {
+            await addSaleItem({
+              sale_id: newSale.id,
+              product_id: parseInt(item.product_id),
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              subtotal: item.subtotal
+            });
+          } catch (error) {
+            console.error(`Erro ao adicionar item ${item.product_id}:`, error);
+            throw error;
+          }
+        });
+
+        await Promise.all(itemPromises);
+        toast.success('Venda registrada com sucesso');
+      }
       
-      toast.success('Venda registrada com sucesso');
       setShowModal(false);
-      setFormData({ customer_id: null, payment_method_id: null, account_id: null, notes: '', items: [] });
+      setEditingSaleId(null);
+      setFormData({ customer_id: null, payment_method_id: null, account_id: null, notes: '', items: [], delivery_type: '', delivery_cost: 0 });
       loadData();
     } catch (error) {
       console.error('Erro ao salvar venda:', error);
       toast.error('Erro ao salvar venda. Verifique os dados e tente novamente.');
+    }
+  };
+
+  const handleEdit = async (sale: any) => {
+    try {
+      const saleItems = await getSaleItems(sale.id);
+      setEditingSaleId(sale.id);
+      setFormData({
+        customer_id: sale.customer_id || null,
+        payment_method_id: sale.payment_method_id || null,
+        account_id: sale.account_id || null,
+        notes: sale.notes || '',
+        items: saleItems.map((item: any) => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          subtotal: item.subtotal,
+          product_name: item.product?.name || '',
+          product_cost: item.product?.production_cost || 0
+        })) || [],
+        delivery_type: sale.delivery_type || '',
+        delivery_cost: sale.delivery_cost || 0
+      });
+      setShowModal(true);
+    } catch (error) {
+      console.error('Erro ao carregar venda:', error);
+      toast.error('Erro ao carregar venda');
     }
   };
 
@@ -221,7 +288,11 @@ export default function Sales() {
           <Button variant="outline" onClick={loadData}>
             <RefreshCw size={18} />
           </Button>
-          <Button onClick={() => setShowModal(true)} className="bg-accent text-white">
+          <Button onClick={() => {
+            setEditingSaleId(null);
+            setFormData({ customer_id: null, payment_method_id: null, account_id: null, notes: '', items: [], delivery_type: '', delivery_cost: 0 });
+            setShowModal(true);
+          }} className="bg-accent text-white">
             <Plus size={18} className="mr-2" /> Nova Venda
           </Button>
         </div>
@@ -269,26 +340,34 @@ export default function Sales() {
                  <p className="font-bold">{sale.customer?.name || 'Cliente Avulso'}</p>
                  <p className="text-xs text-muted-foreground">{new Date(sale.sale_date).toLocaleString('pt-BR')}</p>
                </div>
-               <div className="text-right">
-                 <p className="font-bold text-accent">R$ {sale.total_amount.toFixed(2)}</p>
-                 <button 
-                   onClick={() => handleDelete(sale.id)} 
-                   className="text-red-500 text-xs hover:underline"
-                 >
-                   Excluir
-                 </button>
-               </div>
+               <div className="text-right space-y-1">
+                  <p className="font-bold text-accent">R$ {sale.total_amount.toFixed(2)}</p>
+                  <div className="flex gap-2 justify-end">
+                    <button 
+                      onClick={() => handleEdit(sale)} 
+                      className="text-blue-500 text-xs hover:underline"
+                    >
+                      Editar
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(sale.id)} 
+                      className="text-red-500 text-xs hover:underline"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         </Card>
       </div>
 
-      {/* Modal de Nova Venda */}
+      {/* Modal de Nova/Editar Venda */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-2xl p-6 bg-background max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-6">Nova Venda</h2>
+            <h2 className="text-2xl font-bold mb-6">{editingSaleId ? 'Editar Venda' : 'Nova Venda'}</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -344,28 +423,100 @@ export default function Sales() {
                 {formData.items.length === 0 ? (
                   <p className="text-muted-foreground text-sm">Nenhum item adicionado</p>
                 ) : (
-                  formData.items.map((item: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center p-2 border-b">
-                      <span>{item.product_name} (x{item.quantity})</span>
-                      <div className="flex gap-2">
-                        <span className="font-bold">R$ {item.subtotal.toFixed(2)}</span>
-                        <button 
-                          onClick={() => handleRemoveItem(idx)}
-                          className="text-red-500 text-xs hover:underline"
-                        >
-                          Remover
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                  <div className="space-y-2">
+                    {formData.items.map((item: any, idx: number) => {
+                      const totalCost = (item.product_cost || 0) * item.quantity;
+                      const profit = item.subtotal - totalCost;
+                      return (
+                        <div key={idx} className="p-3 border rounded bg-muted/10">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="font-bold">{item.product_name}</p>
+                              <p className="text-xs text-muted-foreground">Qtd: {item.quantity}</p>
+                            </div>
+                            <button 
+                              onClick={() => handleRemoveItem(idx)}
+                              className="text-red-500 text-xs hover:underline"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-xs">
+                            <div>
+                              <span className="text-muted-foreground">Custo Unit:</span>
+                              <p className="font-bold">R$ {(item.product_cost || 0).toFixed(2)}</p>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Preço Unit:</span>
+                              <p className="font-bold">R$ {item.unit_price.toFixed(2)}</p>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Subtotal:</span>
+                              <p className="font-bold">R$ {item.subtotal.toFixed(2)}</p>
+                            </div>
+                          </div>
+                          <div className="mt-2 pt-2 border-t text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Custo Total:</span>
+                              <span className="font-bold text-red-600">R$ {totalCost.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Lucro (item):</span>
+                              <span className={`font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {profit.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
 
+              <div className="border p-4 rounded bg-muted/20 space-y-3">
+                <p className="font-bold">Entrega</p>
+                <div>
+                  <label className="text-sm font-medium">Tipo de Entrega</label>
+                  <input 
+                    type="text" 
+                    className="w-full p-2 border border-border rounded bg-background text-foreground"
+                    placeholder="Ex: Entrega em domicílio, Retirada, Sedex..."
+                    value={formData.delivery_type}
+                    onChange={e => setFormData({...formData, delivery_type: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Valor da Entrega</label>
+                  <input 
+                    type="number" 
+                    className="w-full p-2 border border-border rounded bg-background text-foreground"
+                    placeholder="0.00"
+                    value={formData.delivery_cost}
+                    onChange={e => setFormData({...formData, delivery_cost: parseFloat(e.target.value) || 0})}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
               <div className="flex justify-between items-center pt-4 border-t">
-                <p className="text-xl font-bold">Total: R$ {formData.items.reduce((s: number, i: any) => s + i.subtotal, 0).toFixed(2)}</p>
+                <div>
+                  <p className="text-sm text-muted-foreground">Subtotal: R$ {formData.items.reduce((s: number, i: any) => s + i.subtotal, 0).toFixed(2)}</p>
+                  {formData.delivery_cost > 0 && <p className="text-sm text-muted-foreground">Entrega: R$ {parseFloat(formData.delivery_cost).toFixed(2)}</p>}
+                  <p className="text-xl font-bold">Total: R$ {(formData.items.reduce((s: number, i: any) => s + i.subtotal, 0) + (parseFloat(formData.delivery_cost) || 0)).toFixed(2)}</p>
+                </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setShowModal(false)}>Cancelar</Button>
-                  <Button onClick={handleSave} className="bg-primary text-white">Finalizar Venda</Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowModal(false);
+                      setEditingSaleId(null);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSave} className="bg-primary text-white">
+                    {editingSaleId ? 'Atualizar Venda' : 'Finalizar Venda'}
+                  </Button>
                 </div>
               </div>
             </div>

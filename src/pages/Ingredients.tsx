@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Trash2, Search, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, RefreshCw, AlertCircle } from 'lucide-react';
 import { getIngredients, addIngredient, updateIngredient, deleteIngredient, getIngredientCategories } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
@@ -154,15 +154,33 @@ export default function Ingredients() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredIngredients.map((ingredient) => (
-          <Card key={ingredient.id} className="p-4 hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start mb-2">
-              <div>
-                <h3 className="font-bold text-lg">{ingredient.name}</h3>
-                <p className="text-xs text-muted-foreground uppercase font-semibold">{ingredient.unit}</p>
-              </div>
-              <p className="text-xl font-black text-accent">R$ {ingredient.cost.toFixed(2)}</p>
-            </div>
+         {filteredIngredients.map((ingredient) => {
+           const isLowStock = ingredient.current_stock < ingredient.minimum_stock;
+           return (
+           <Card key={ingredient.id} className={`p-4 hover:shadow-md transition-shadow ${isLowStock ? 'border-red-300 bg-red-50' : ''}`}>
+             <div className="flex justify-between items-start mb-3">
+               <div className="flex-1">
+                 <div className="flex items-center gap-2">
+                   <h3 className="font-bold text-lg">{ingredient.name}</h3>
+                   {isLowStock && <AlertCircle size={16} className="text-red-500" />}
+                 </div>
+                 <p className="text-xs text-muted-foreground uppercase font-semibold">{ingredient.unit}</p>
+               </div>
+               <p className="text-xl font-black text-accent">R$ {ingredient.cost.toFixed(2)}</p>
+             </div>
+             
+             <div className="bg-white rounded p-2 mb-3 text-sm">
+               <div className="flex justify-between mb-2">
+                 <span className="font-medium">Estoque:</span>
+                 <span className={isLowStock ? 'text-red-600 font-bold' : 'text-green-600 font-bold'}>
+                   {ingredient.current_stock} {ingredient.unit}
+                 </span>
+               </div>
+               <div className="flex justify-between">
+                 <span className="text-muted-foreground">Mínimo:</span>
+                 <span className="text-muted-foreground">{ingredient.minimum_stock} {ingredient.unit}</span>
+               </div>
+             </div>
             <div className="flex gap-2 mt-4">
               <Button variant="outline" size="sm" className="flex-1" onClick={() => handleOpenModal(ingredient)}>
                 <Edit2 size={14} className="mr-1" /> Editar
@@ -186,9 +204,10 @@ export default function Ingredients() {
               >
                 <Trash2 size={14} />
               </Button>
-            </div>
-          </Card>
-        ))}
+              </div>
+              </Card>
+              );
+              })}
       </div>
 
       {showModal && (
@@ -223,6 +242,17 @@ export default function Ingredients() {
                 <div>
                   <label className="block text-sm font-bold mb-1">Custo (R$)</label>
                   <input type="number" className="w-full px-3 py-2 border rounded" value={formData.cost} onChange={e => setFormData({...formData, cost: parseFloat(e.target.value) || 0})} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold mb-1">Estoque Atual</label>
+                  <input type="number" className="w-full px-3 py-2 border rounded" value={formData.current_stock} onChange={e => setFormData({...formData, current_stock: parseFloat(e.target.value) || 0})} min="0" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">Estoque Mínimo</label>
+                  <input type="number" className="w-full px-3 py-2 border rounded" value={formData.minimum_stock} onChange={e => setFormData({...formData, minimum_stock: parseFloat(e.target.value) || 0})} min="0" />
                 </div>
               </div>
             </div>
